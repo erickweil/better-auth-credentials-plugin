@@ -15,6 +15,9 @@ app.get("/", (req, res) => {
     res.status(200).redirect("api/auth/reference"); // redirecionando para documentação
 });
 
+// Serve static files from the public directory
+app.use("/public", express.static("public"));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

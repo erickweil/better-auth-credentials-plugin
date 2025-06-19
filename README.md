@@ -38,16 +38,7 @@ npm run example:express
 > ```
 
 5. Open your browser and go to `http://localhost:3000`. You should see the better-auth OpenAPI plugin docs
-- Navigate to the Default -> `/sign-up/email` endpoint and create a user with the info below
-```json
-{
-  "name": "Professor",
-  "email": "professor@example.com",
-  "username": "professor",
-  "password": "professor"
-}
-```
-> (W.I.P) You'll need to open any MongoDB manager and delete the password field to be able to login with LDAP
+
 - Now you can login with the LDAP credentials, go to Ldap -> `/sign-in/ldap` and use the following credentials (username & password must be those values):
 ```json
 {
@@ -56,7 +47,7 @@ npm run example:express
 }
 ```
 
-> TODO: using ldap sign-up should be done automatically after the first sucessful sign-in via LDAP, just like social sign-in
+Using ldap sign-up should be done automatically after the first sucessful sign-in via LDAP, just like social sign-in, unless you have disabled it in the configuration.
 
 ## Running the tests
 

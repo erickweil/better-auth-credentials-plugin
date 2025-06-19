@@ -1,10 +1,11 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { fromNodeHeaders } from "better-auth/node";
-import { openAPI } from "better-auth/plugins";
+import { createAuthMiddleware, openAPI } from "better-auth/plugins";
 import { Request } from "express";
 import { MongoClient } from "mongodb";
 import { ldap } from "../../src/ldap/index.js";
+import { mkdir, writeFile } from "fs/promises";
 
 // https://www.better-auth.com/docs/adapters/mongo
 // For MongoDB, we don't need to generate or migrate the schema.
@@ -14,38 +15,54 @@ const db = client.db();
 export const auth = betterAuth({
     database: mongodbAdapter(db),
     emailAndPassword: {
-        enabled: true,
-        requireEmailVerification: false
+        // Disable email and password authentication
+        // Users will both sign-in and sign-up via LDAP
+        enabled: false,
     },
     plugins: [
         openAPI(),
         ldap({
-            adminDn: process.env.LDAP_BIND_DN!,
-            adminPassword: process.env.LDAP_PASSW!,
-            baseDn: process.env.LDAP_BASE_DN!,
-            usernameAttribute: process.env.LDAP_SEARCH_ATTR,
-            onLdapAuthenticated(ctx, user, ldapResult) {
-                console.log("Usuário autenticado via LDAP:", user, ldapResult);
+            autoSignUp: true,
+            userCredentialAttribute: "email",
+            ldapConfig: {
+                ldapOpts: {
+                    url: process.env.LDAP_URL!
+                },
+                adminDn: process.env.LDAP_BIND_DN,
+                adminPassword: process.env.LDAP_PASSW,
+                userSearchBase: process.env.LDAP_BASE_DN,
+                usernameAttribute: process.env.LDAP_SEARCH_ATTR,
+                //attributes: ['jpegPhoto;binary', 'displayName', 'uid', 'mail', 'cn'],
             },
-            ldapOptions: {
-                url: process.env.LDAP_URL!
+            async onLdapAuthenticated(ctx, user, ldapResult) {
+                if(user) {
+                    console.log("Existing user via LDAP:", user, ldapResult);
+                } else {
+                    console.log("New User via LDAP:", ldapResult);
+                }
+
+                /*
+                // TODO: Handle binary data
+                // https://github.com/shaozi/ldap-authentication
+                // In version 3, the raw field is no longer used. Instead, append ;binary to the attributes you want to get back as base64-encoded string.
+                // https://github.com/shaozi/ldap-authentication/issues/82
+                
+                let imageUrl;
+                let jpegPhoto = ldapResult["jpegPhoto;binary"];
+                if(jpegPhoto) {
+                    await mkdir("./public/images/users", { recursive: true });
+                    await writeFile(`./public/images/users/${ldapResult.uid}.jpg`, jpegPhoto, 'binary');
+                    imageUrl = `/images/users/${ldapResult.uid}.jpg`;
+                }*/
+
+                return {
+                    name: ldapResult.displayName || ldapResult.uid || ldapResult.cn || "LDAP User",
+                    email: (Array.isArray(ldapResult.mail) ? ldapResult.mail[0] : ldapResult.mail) || `${ldapResult.uid}@ldap.local`,
+                    //image: imageUrl || undefined
+                }
             },
         })
     ],
-
-    user: {
-        /*additionalFields: {
-            username: {
-                type: "string",
-                validator: {
-                    input: z.string().min(3).max(32).regex(/^[a-zA-Z0-9_\-]+$/, "Nome de usuário inválido"),
-                },
-                required: false,
-                select: true,
-                unique: true,
-            },
-        }*/
-    },
 });
 
 // https://github.com/Bekacru/t3-app-better-auth/blob/main/src/server/auth.ts
