@@ -10,9 +10,11 @@ The plugin itself can be used to authenticate to anything, as are you that handl
 - Auto sign-up (optional) and management of Account linking and session creation
 - Similar in behaviour to the default email & password flow, but YOU handle the verification of the credentials and allow automatically sign-up
 - Route customization, you can choose the route path and the body parameters (using zod schema that doubles as validation and OpenAPI documentation)
+- Supports custom callbacks for sign-in and sign-up events
 
-Examples:
-- examples/express - Express.js example configured with MongoDB and uses this plugin to perform LDAP authentication, showing how easy is to use it
+Examples (All are built using express + MongoDB):
+- examples/basic - Basic usage example with a fake user store, showcasing the credentials callback functionality and how to handle user data
+- examples/ldap-auth - Uses this plugin to perform LDAP authentication, showing how easy is to use it
 
 Considerations:
 - You need to return a `email` field after the authentication, this is used to create/update the user in the database, and also to link the account with the session (email field should be unique).
@@ -59,8 +61,46 @@ export const auth = betterAuth({
 });
 ```
 
+Also you can return a onSignIn & onSignUp callbacks, which will be called after the user is signed in or signed up, respectively
 
-## Running the example
+[examples/basic](examples/basic)
+```javascript
+credentials({
+    autoSignUp: true,
+    // Credentials login callback, this is called when the user submits the form
+    async callback(ctx, parsed) {
+        // Simulate a user lookup in a fake store
+        const foundUser = usersFakeStore[parsed.email];
+        if (!foundUser) {
+            throw new Error("User not found");
+        }
+        // Check if the password matches
+        if (foundUser.password !== parsed.password) {
+            throw new Error("Invalid password");
+        }
+        
+        return {
+            // Must return email to find/create the user
+            email: parsed.email,
+
+            // Called if this is a existing user sign-in
+            onSignIn(userData, user, account) {
+                return userData;
+            },
+
+            // Called if this is a new user sign-up (only used if autoSignUp is true)
+            onSignUp(userData) {
+                userData.name =  foundUser.name;
+                userData.image = foundUser.image;
+                userData.emailVerified = false;
+                return userData;
+            }
+        };
+    },
+})
+```
+
+## Running the ldap example
 
 Requirements:
 - Node.js (v18 or later)
@@ -85,13 +125,13 @@ docker compose up -d
 
 4. Run the example:
 ```bash
-cp ./examples/express/.env.example ./examples/express/.env
-npm run example:express
+cp ./examples/ldap-auth/.env.example ./examples/ldap-auth/.env
+npm run example:ldap
 ```
 > If on windows, this may not work, you will need to run the example manually:
 > ```bash
-> cd examples/express
-> node ../../dist/examples/express/server.js
+> cd examples/ldap-auth
+> node ../../dist/examples/ldap-auth/server.js
 > ```
 
 5. Open your browser and go to `http://localhost:3000`. You should see the better-auth OpenAPI plugin docs

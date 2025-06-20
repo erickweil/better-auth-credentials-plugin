@@ -6,7 +6,7 @@ import { Account, BetterAuthPlugin, User } from "better-auth";
 import { createAuthEndpoint, sendVerificationEmailFn } from "better-auth/api";
 import { CREDENTIALS_ERROR_CODES as CREDENTIALS_ERROR_CODES } from "./error-codes.js";
 import { setSessionCookie } from "better-auth/cookies";
-import z, { ZodTypeAny } from "zod";
+import { default as z, ZodTypeAny } from "zod";
 
 const defaultCredentialsSchema = z.object({
 	email: z.string({
@@ -23,6 +23,11 @@ type DefaultCredentialsType = z.infer<typeof defaultCredentialsSchema>;
 
 type GetBodyParsed<Z> = Z extends z.ZodTypeAny ? z.infer<Z> : DefaultCredentialsType;
 type MaybePromise<T> = T | Promise<T>;
+
+type CallbackResult = (Partial<User> & Pick<User, "email"> & {
+	onSignUp?: (userData: Partial<Omit<User, "email">>) => MaybePromise<Partial<User>>;
+	onSignIn?: (userData: Partial<Omit<User, "email">>, user: User, account: Account) => MaybePromise<Partial<User>>;
+}) | null | undefined;
 
 export type CredentialOptions<Z extends (ZodTypeAny|undefined) = undefined> = {
 	/**
@@ -48,7 +53,7 @@ export type CredentialOptions<Z extends (ZodTypeAny|undefined) = undefined> = {
 		ctx: EndpointContext<string, any>, 
 		parsed: GetBodyParsed<Z> 
 	) => 
-		MaybePromise<(Partial<User> & Pick<User, "email">) | null | undefined>;
+		MaybePromise<CallbackResult>;
 
 	/**
 	 * Whether to sign up the user if they successfully authenticate but do not exist locally
@@ -109,7 +114,7 @@ export const credentials = <Z extends (ZodTypeAny|undefined) = undefined>(option
 					const parsed = ctx.body as GetBodyParsed<Z>;
 
 					// ================== Authenticate with Credentials ===================
-					let callbackResult: (Partial<User> & Pick<User, "email">) | null | undefined;
+					let callbackResult: CallbackResult;
 					try {
 						callbackResult = await options.callback(ctx, parsed);
 
@@ -126,17 +131,11 @@ export const credentials = <Z extends (ZodTypeAny|undefined) = undefined>(option
 							message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 						});
 					}
+					let {onSignIn, onSignUp, email, ...userData} = callbackResult;
 
 					// ================== Find User & Account, also Auto-SignUp if enabled ===================
-					let user: User | null = await ctx.context.adapter.findOne<User>({
-						model: "user",
-						where: [
-							{
-								field: "email",
-								value: callbackResult.email,
-							},
-						],
-					});
+					let foundUser = await ctx.context.internalAdapter.findUserByEmail(email, {includeAccounts: false});
+					let user = foundUser?.user;
 					
 					// If no user is found and autoSignUp is not enabled, throw an error
 					if(!options.autoSignUp && !user) {
@@ -151,17 +150,22 @@ export const credentials = <Z extends (ZodTypeAny|undefined) = undefined>(option
 					if(!user) {
 						// Auto-SignUp: Create a new user and account
 						try {
-							const {email, name, ...userData} = callbackResult;
+							if(onSignUp && typeof onSignUp === "function") {
+								userData = await onSignUp(userData);
+							}
+
 							if(!userData || !email) {
 								throw new APIError("UNPROCESSABLE_ENTITY", {
 									message: CREDENTIALS_ERROR_CODES.EMAIL_REQUIRED,
 									details: "User data must include at least email",
 								});
 							}
+
+							const { name, ...restUserData } = userData;
 							user = await ctx.context.internalAdapter.createUser({
 								email: email,
 								name: name || email, // Fallback to using email as name if not provided
-								...userData
+								...restUserData
 							}, ctx);
 						} catch (e) {
 							ctx.context.logger.error("Failed to create user", e);
@@ -248,10 +252,13 @@ export const credentials = <Z extends (ZodTypeAny|undefined) = undefined>(option
 							});
 						}
 						
+						if(onSignIn && typeof onSignIn === "function") {
+							userData = await onSignIn(userData, user, account);
+						}
+						
 						// Update the user with the new data (Both in database and in the user object used to create session)
-						await ctx.context.internalAdapter.updateUser(user.id, callbackResult, ctx);
-						for(let key of Object.keys(callbackResult)) {
-							(user as any)[key] = (callbackResult as any)[key];
+						if(userData && Object.keys(userData).length > 0) {
+							user = (await ctx.context.internalAdapter.updateUser(user.id, userData, ctx)) as User;
 						}
 					}
 					
