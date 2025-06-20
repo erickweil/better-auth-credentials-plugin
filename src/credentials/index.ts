@@ -1,13 +1,12 @@
 // Adaptado de https://github.com/better-auth/better-auth/blob/main/packages/better-auth/src/plugins/username/index.ts
 // e https://github.com/better-auth/better-auth/blob/main/packages/better-auth/src/api/routes/sign-in.ts
 
-import { AnyZodObject, z, ZodEffects, ZodObject, ZodRawShape, ZodTypeAny } from "zod";
-import { APIError, EndpointContext, EndpointOptions } from "better-call";
-import { Account, BetterAuthPlugin, InferOptionSchema, User } from "better-auth";
-import { createAuthEndpoint, createAuthMiddleware, sendVerificationEmailFn } from "better-auth/api";
-import { USERNAME_ERROR_CODES } from "./error-codes.js";
-import { ERROR_CODES } from "better-auth/plugins";
+import { APIError, EndpointContext } from "better-call";
+import { Account, BetterAuthPlugin, User } from "better-auth";
+import { createAuthEndpoint, sendVerificationEmailFn } from "better-auth/api";
+import { CREDENTIALS_ERROR_CODES as CREDENTIALS_ERROR_CODES } from "./error-codes.js";
 import { setSessionCookie } from "better-auth/cookies";
+import z, { ZodTypeAny } from "zod";
 
 const defaultCredentialsSchema = z.object({
 	email: z.string({
@@ -117,14 +116,14 @@ export const credentials = <Z extends (ZodTypeAny|undefined) = undefined>(option
 						if (!callbackResult) {
 							ctx.context.logger.error("Authentication failed, callback didn't returned user data", { credentials });
 							throw new APIError("UNAUTHORIZED", {
-								message: USERNAME_ERROR_CODES.INVALID_USERNAME_OR_PASSWORD,
+								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 							});
 						}
 					} catch (error) {
 						ctx.context.logger.error("Authentication failed", { error, credentials });
 					
 						throw new APIError("UNAUTHORIZED", {
-							message: USERNAME_ERROR_CODES.INVALID_USERNAME_OR_PASSWORD,
+							message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 						});
 					}
 
@@ -144,7 +143,7 @@ export const credentials = <Z extends (ZodTypeAny|undefined) = undefined>(option
 						// TODO: timing attack mitigation
 						ctx.context.logger.error("User not found", { credentials });
 						throw new APIError("UNAUTHORIZED", {
-							message: USERNAME_ERROR_CODES.INVALID_USERNAME_OR_PASSWORD,
+							message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 						});
 					} 
 
@@ -155,7 +154,7 @@ export const credentials = <Z extends (ZodTypeAny|undefined) = undefined>(option
 							const {email, name, ...userData} = callbackResult;
 							if(!userData || !email) {
 								throw new APIError("UNPROCESSABLE_ENTITY", {
-									message: USERNAME_ERROR_CODES.INVALID_USERNAME,
+									message: CREDENTIALS_ERROR_CODES.EMAIL_REQUIRED,
 									details: "User data must include at least email",
 								});
 							}
@@ -170,13 +169,13 @@ export const credentials = <Z extends (ZodTypeAny|undefined) = undefined>(option
 								throw e;
 							}
 							throw new APIError("UNPROCESSABLE_ENTITY", {
-								message: USERNAME_ERROR_CODES.UNEXPECTED_ERROR,
+								message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR,
 								details: e,
 							});
 						}
 						if (!user) {
 							throw new APIError("BAD_REQUEST", {
-								message: USERNAME_ERROR_CODES.UNEXPECTED_ERROR,
+								message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR,
 							});
 						}
 
@@ -228,14 +227,14 @@ export const credentials = <Z extends (ZodTypeAny|undefined) = undefined>(option
 						});
 						if (!account) {
 							throw new APIError("UNAUTHORIZED", {
-								message: USERNAME_ERROR_CODES.INVALID_USERNAME_OR_PASSWORD,
+								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 							});
 						}
 						// Prevent email & password created users from logging in with this credentials plugin, as they would have a password set
 						if (account?.password) {
 							ctx.context.logger.error("Shouldn't login with credentials, this user has a account with password", { credentials });
 							throw new APIError("UNAUTHORIZED", {
-								message: USERNAME_ERROR_CODES.INVALID_USERNAME_OR_PASSWORD,
+								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 							});
 						}
 
@@ -245,7 +244,7 @@ export const credentials = <Z extends (ZodTypeAny|undefined) = undefined>(option
 						) {
 							await sendVerificationEmailFn(ctx, user);
 							throw new APIError("FORBIDDEN", {
-								message: USERNAME_ERROR_CODES.EMAIL_NOT_VERIFIED,
+								message: CREDENTIALS_ERROR_CODES.EMAIL_NOT_VERIFIED,
 							});
 						}
 						
@@ -266,7 +265,7 @@ export const credentials = <Z extends (ZodTypeAny|undefined) = undefined>(option
 					if (!session) {
 						ctx.context.logger.error("Failed to create session");
 						throw new APIError("UNAUTHORIZED", {
-							message: USERNAME_ERROR_CODES.UNEXPECTED_ERROR
+							message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR
 						});
 					}
 					await setSessionCookie(
@@ -289,6 +288,6 @@ export const credentials = <Z extends (ZodTypeAny|undefined) = undefined>(option
 				},
 			),
 		},
-		$ERROR_CODES: USERNAME_ERROR_CODES,
+		$ERROR_CODES: CREDENTIALS_ERROR_CODES,
 	} satisfies BetterAuthPlugin;
 };

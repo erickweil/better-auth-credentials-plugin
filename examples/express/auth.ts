@@ -1,14 +1,12 @@
-import { z } from "zod";
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { fromNodeHeaders } from "better-auth/node";
-import { createAuthMiddleware, openAPI } from "better-auth/plugins";
+import { openAPI } from "better-auth/plugins";
 import { Request } from "express";
 import { MongoClient } from "mongodb";
-import { ldap } from "../../src/ldap/index.js";
-import { mkdir, writeFile } from "fs/promises";
 import { credentials } from "../../src/credentials/index.js";
 import { authenticate } from "ldap-authentication";
+import z from "zod";
 
 // https://www.better-auth.com/docs/adapters/mongo
 // For MongoDB, we don't need to generate or migrate the schema.
@@ -31,6 +29,7 @@ export const auth = betterAuth({
                 password: z.string().min(1)
             }),
             async callback(ctx, parsed) {
+                // Login via LDAP and return user data
                 const secure = process.env.LDAP_URL!.startsWith("ldaps://");
                 const ldapResult = await authenticate({
                     // LDAP client connection options
@@ -44,61 +43,22 @@ export const auth = betterAuth({
                     adminPassword: process.env.LDAP_PASSW,
                     userSearchBase: process.env.LDAP_BASE_DN,
                     usernameAttribute: process.env.LDAP_SEARCH_ATTR,
+                    // https://github.com/shaozi/ldap-authentication/issues/82
+                    //attributes: ['jpegPhoto;binary', 'displayName', 'uid', 'mail', 'cn'],
 
                     username: parsed.credential,
                     userPassword: parsed.password,
                 });
 
-                console.log("Auth via LDAP:", parsed, ldapResult);
-
+                console.log("Auth via LDAP:", ldapResult);
+                const uid = ldapResult[process.env.LDAP_SEARCH_ATTR!];
+                
                 return {
-                    name: ldapResult.displayName || ldapResult.uid || ldapResult.cn || "LDAP User",
-                    email: (Array.isArray(ldapResult.mail) ? ldapResult.mail[0] : ldapResult.mail) || `${ldapResult[process.env.LDAP_SEARCH_ATTR!]}@local`,
-                    //image: imageUrl || undefined
+                    name: ldapResult.displayName || uid,
+                    email: (Array.isArray(ldapResult.mail) ? ldapResult.mail[0] : ldapResult.mail) || `${uid}@local`
                 }
             },
         })
-        /*ldap({
-            autoSignUp: true,
-            userCredentialAttribute: "email",
-            ldapConfig: {
-                ldapOpts: {
-                    url: process.env.LDAP_URL!
-                },
-                adminDn: process.env.LDAP_BIND_DN,
-                adminPassword: process.env.LDAP_PASSW,
-                userSearchBase: process.env.LDAP_BASE_DN,
-                usernameAttribute: process.env.LDAP_SEARCH_ATTR,
-                //attributes: ['jpegPhoto;binary', 'displayName', 'uid', 'mail', 'cn'],
-            },
-            async onLdapAuthenticated(ctx, user, ldapResult) {
-                if(user) {
-                    console.log("Existing user via LDAP:", user, ldapResult);
-                } else {
-                    console.log("New User via LDAP:", ldapResult);
-                }
-
-                / *
-                // TODO: Handle binary data
-                // https://github.com/shaozi/ldap-authentication
-                // In version 3, the raw field is no longer used. Instead, append ;binary to the attributes you want to get back as base64-encoded string.
-                // https://github.com/shaozi/ldap-authentication/issues/82
-                
-                let imageUrl;
-                let jpegPhoto = ldapResult["jpegPhoto;binary"];
-                if(jpegPhoto) {
-                    await mkdir("./public/images/users", { recursive: true });
-                    await writeFile(`./public/images/users/${ldapResult.uid}.jpg`, jpegPhoto, 'binary');
-                    imageUrl = `/images/users/${ldapResult.uid}.jpg`;
-                }* /
-
-                return {
-                    name: ldapResult.displayName || ldapResult.uid || ldapResult.cn || "LDAP User",
-                    email: (Array.isArray(ldapResult.mail) ? ldapResult.mail[0] : ldapResult.mail) || `${ldapResult.uid}@ldap.local`,
-                    //image: imageUrl || undefined
-                }
-            },
-        })*/
     ],
 });
 
