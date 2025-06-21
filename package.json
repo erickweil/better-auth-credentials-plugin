@@ -1,8 +1,22 @@
 {
   "name": "better-auth-credentials-plugin",
-  "version": "1.0.1",
-  "description": "",
-  "main": "server.js",
+  "version": "0.1.0",
+  "description": "Generic credentials authentication plugin for Better Auth",
+  "author": "Erick L. Weil",
+  "license": "MIT",
+  "keywords": ["better-auth","betterauth","auth", "authentication", "credentials", "ldap", "active-directory", "ad", "plugin", "provider"],
+  "main": "dist/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/erickweil/better-auth-credentials-plugin.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist"
+  ],
+  "types": "dist/index.d.ts",
   "scripts": {
     "example:ldap": "cd examples/ldap-auth && node ../../dist/examples/ldap-auth/server.js",
     "example:basic": "cd examples/basic && node ../../dist/examples/basic/server.js",
@@ -22,9 +36,6 @@
     "globalTeardown": "<rootDir>/test/teardownjest.js",
     "rootDir": "./dist"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "better-auth": "^1.2.9",
     "zod": "^3.25.67"

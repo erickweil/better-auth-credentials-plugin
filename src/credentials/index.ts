@@ -24,7 +24,7 @@ type DefaultCredentialsType = z.infer<typeof defaultCredentialsSchema>;
 type GetBodyParsed<Z> = Z extends z.ZodTypeAny ? z.infer<Z> : DefaultCredentialsType;
 type MaybePromise<T> = T | Promise<T>;
 
-type CallbackResult = (Partial<User> & Pick<User, "email"> & {
+export type CallbackResult = (Partial<User> & Pick<User, "email"> & {
 	onSignUp?: (userData: Partial<Omit<User, "email">>) => MaybePromise<Partial<User>>;
 	onSignIn?: (userData: Partial<Omit<User, "email">>, user: User, account: Account) => MaybePromise<Partial<User>>;
 }) | null | undefined;
