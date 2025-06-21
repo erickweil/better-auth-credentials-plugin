@@ -4,11 +4,22 @@
   "description": "Generic credentials authentication plugin for Better Auth",
   "author": "Erick L. Weil",
   "license": "MIT",
-  "keywords": ["better-auth","betterauth","auth", "authentication", "credentials", "ldap", "active-directory", "ad", "plugin", "provider"],
+  "keywords": [
+    "better-auth",
+    "betterauth",
+    "auth",
+    "authentication",
+    "credentials",
+    "ldap",
+    "active-directory",
+    "ad",
+    "plugin",
+    "provider"
+  ],
   "main": "dist/index.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/erickweil/better-auth-credentials-plugin.git"
+    "url": "git+https://github.com/erickweil/better-auth-credentials-plugin.git"
   },
   "engines": {
     "node": ">=18"

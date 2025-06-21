@@ -1,4 +1,7 @@
 # Better Auth Credentials Plugin
+
+[![npm version](https://badge.fury.io/js/better-auth-credentials-plugin.svg)](https://badge.fury.io/js/better-auth-credentials-plugin)
+
 Generic credentials authentication plugin for Better Auth
 
 The plugin itself can be used to authenticate to anything, as are you that handle the logic that verify user input credentials in the callback, and just need to return user data that will be used to create/update the user in the database.
@@ -25,10 +28,10 @@ Considerations:
 To use this plugin, you need to install it and configure it in your Better Auth application. The plugin provides a way to authenticate users using credentials (like username and password) and can be customized to fit your needs.
 
 **Installation**
+https://www.npmjs.com/package/better-auth-credentials-plugin
 ```bash
 npm install better-auth-credentials-plugin
 ```
-> LOL THIS IS NOT PUBLISHED YET
 
 Hello world usage example (just to show how to use the plugin):
 `src/lib/auth.ts`
@@ -100,7 +103,7 @@ credentials({
 })
 ```
 
-## Running the ldap example
+## Building and running the example
 
 Requirements:
 - Node.js (v18 or later)
@@ -149,7 +152,7 @@ Using ldap sign-up should be done automatically after the first sucessful sign-i
 
 ## Running the tests
 
-(No tests yet)
+> No tests yet
 ```bash
 docker compose up -d
 npm run test
