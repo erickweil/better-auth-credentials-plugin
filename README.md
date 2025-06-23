@@ -23,18 +23,20 @@ Considerations:
 - You need to return a `email` field after the authentication, this is used to create/update the user in the database, and also to link the account with the session (email field should be unique).
 - It's not intended to use this to re-implement password login, but to be used when you need to integrate with an external system that uses credentials for authentication, like LDAP, or any other system that you can verify the credentials and get user data. If you try to mimic password login by hashing and storing the password, aditional database round-trips will be needed as this plugin will search the user again after you alread did (just use the email & password flow or username plugin don't do this).
 
-## Basic usage
-
-To use this plugin, you need to install it and configure it in your Better Auth application. The plugin provides a way to authenticate users using credentials (like username and password) and can be customized to fit your needs.
-
 **Installation**
 https://www.npmjs.com/package/better-auth-credentials-plugin
 ```bash
 npm install better-auth-credentials-plugin
 ```
 
+## API Details
+
+### Configuration of the plugin
+
+To use this plugin, you need to install it and configure it in your Better Auth application. The plugin provides a way to authenticate users using credentials (like username and password) that can be customized to fit your needs.
+
 Hello world usage example (just to show how to use the plugin):
-`src/lib/auth.ts`
+`auth.ts`
 ```javascript
 import { betterAuth } from "better-auth";
 import { credentials } from "better-auth-credentials-plugin";
@@ -50,21 +52,45 @@ export const auth = betterAuth({
         credentials({
             autoSignUp: true,
             async callback(ctx, parsed) {
-                if(parsed.email === "test@example.com" && parsed.password === "password") {
-                    return {
-                        name: "Test User",
-                        email: "test@example.com",
-                    };
-                } else {
-                    throw new Error("Invalid credentials");
-                }
+                return {};
             },
         })
     ],
 });
 ```
 
-Also you can return a onSignIn & onSignUp callbacks, which will be called after the user is signed in or signed up, respectively
+Doing as above would allow any user sign in with any password, and create new users automatically if they don't exist.
+
+The full set of options for the plugin is as follows:
+
+| Attribute                   | Description                                                                      |
+|-----------------------------|----------------------------------------------------------------------------------|
+| `callback` *               | This callback is the only required option, here you handle the login logic and return the user data to create a new user or update existing ones |
+| `inputSchema`                | Zod schema that defined the body contents of the sign-in route, you can put any schema you like, but if it doesn't have an `email` field, you then need to return the email to use in the callback. Defaults to the same as User & Password flow `{email: string, password: string, rememberMe?: boolean}` |
+| `autoSignUp`                | If true will create new Users and Accounts if the don't exist |
+| `linkAccountIfExisting`                | If true, will link the Account on existing users created with another login method (Only have effect with autoSignUp true) |
+| `providerId`                | Id of the Account provider defaults to `credential` |
+| `path`                | Path of the route endpoint, defaults to `/sign-in/credentials` |
+| `UserType`                | If you have aditional fields in the User type and want correct typescript types in the callbacks, you can set here it's type, example: `{} as User & {lastLogin: Date}` |
+
+If the callback throws an error or returns a falsy value, auth will fail with generic 401 Invalid Credentials error.
+
+You then must return an object with the following shape:
+| Attribute                   | Description                                                                      |
+|-----------------------------|----------------------------------------------------------------------------------|
+| `...userData`              | User data that will be used to create or update the user in the database, this must contain an `email` field if the inputSchema doesn't have it |
+| `onSignIn`                 | Callback that will be called after the user is sucesfully signed in. It receives the user data returned above, User and Account from database as parameters, and you should return the mutated user data to update |
+| `onSignUp`                 | Callback that will be called after the user is sucesfully signed up (only if autoSignUp is true). It receives the user data returned above, and you should return the mutated user data with the fields a new user should have |
+
+> All those callbacks can be async if you want.
+
+- If the onSignIn throws an error, auth will fail with generic 401 Invalid Credentials error, you can return a falsy value or an empty object to skip updating the user data in the database.
+- If the onSignUp returns a object without email field, falsy value or throws an error, auth will fail with generic 401 Invalid Credentials error.
+
+## Usage examples
+
+### Basic: Randomly authenticating users
+Example randomly authenticating users allowing any credentials, just to show how to use the plugin and the callbacks:
 
 [examples/basic](examples/basic)
 ```javascript
@@ -72,32 +98,141 @@ credentials({
     autoSignUp: true,
     // Credentials login callback, this is called when the user submits the form
     async callback(ctx, parsed) {
-        // Simulate a user lookup in a fake store
-        const foundUser = usersFakeStore[parsed.email];
-        if (!foundUser) {
-            throw new Error("User not found");
-        }
-        // Check if the password matches
-        if (foundUser.password !== parsed.password) {
-            throw new Error("Invalid password");
+        // Just for demonstration purposes, half of the time we will fail the authentication
+        if (Math.random() < 0.5) {
+            throw new Error("Authentication failed, please try again.");
         }
         
         return {
-            // Must return email to find/create the user
-            email: parsed.email,
-
             // Called if this is a existing user sign-in
             onSignIn(userData, user, account) {
+                console.log("Existing User signed in:", user);
+
                 return userData;
             },
 
             // Called if this is a new user sign-up (only used if autoSignUp is true)
             onSignUp(userData) {
-                userData.name =  foundUser.name;
-                userData.image = foundUser.image;
-                userData.emailVerified = false;
-                return userData;
+                console.log("New User signed up:", userData.email);
+
+                return {
+                    ...userData,
+                    name: parsed.email.split("@")[0]
+                };
             }
+        };
+    },
+})
+```
+
+### Login on external API
+Example using the plugin to authenticate users against an external API, when you want to use the plugin to authenticate users against an external system that uses credentials for authentication, like a custom API or service. For this demonstration, the API has predefined users and returns user data after successful authentication.
+
+[examples/external-api](examples/external-api)
+```javascript
+credentials({
+    autoSignUp: true,
+    inputSchema: z.object({
+        username: z.string().min(1),
+        password: z.string().min(1),
+    }),
+    // Credentials login callback, this is called when the user submits the form
+    async callback(ctx, parsed) {
+        // Simulate an external API call to authenticate the user
+        const { username, password } = parsed;
+        const response = await fetch(`http://localhost:${process.env.PORT || 3000}/example/login`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ username, password }),
+        });
+
+        if (!response.ok) {
+            throw new Error("Error authenticating:"+ ` ${response.status} ${response.statusText}`);
+        }
+
+        const apiUser = await response.json();
+
+        return {
+            // Must return email, because inputSchema doesn't have it
+            email: apiUser.email,
+
+            // Other user data to update
+            name: apiUser.name,
+            username: apiUser.username,
+        };
+    },
+    })
+```
+
+### LDAP Authentication Example
+Example using the plugin to authenticate users against an LDAP server, showcasing how to use the plugin with an external authentication system.
+
+> Uses https://github.com/shaozi/ldap-authentication for LDAP authentication
+
+[examples/ldap-auth](examples/ldap-auth)
+```javascript
+credentials({
+    // User type to use, this will be used to type the user in the callback
+    // This way the zod schema will infer correctly, otherwise you would have to pass both generic types explicitly
+    UserType: {} as User & {
+        ldap_dn: string,
+        description: string,
+        groups: string[]
+    },
+    // Sucessful authenticated users will have a 'ldap' Account linked to them, no matter if they previously exists or not
+    autoSignUp: true,
+    linkAccountIfExisting: true,
+    providerId: "ldap",
+    inputSchema: z.object({
+        credential: z.string().min(1),
+        password: z.string().min(1)
+    }),
+    // Credentials login callback, this is called when the user submits the form
+    async callback(ctx, parsed) {
+        // Login via LDAP and return user data
+        const secure = process.env.LDAP_URL!.startsWith("ldaps://");
+        const ldapResult = await authenticate({
+            // LDAP client connection options
+            ldapOpts: {
+                url: process.env.LDAP_URL!,
+                connectTimeout: 5000,
+                strictDN: true,
+                ...(secure ? {tlsOptions: { minVersion: "TLSv1.2" }} : {})
+            },
+            adminDn: process.env.LDAP_BIND_DN,
+            adminPassword: process.env.LDAP_PASSW,
+            userSearchBase: process.env.LDAP_BASE_DN,
+            usernameAttribute: process.env.LDAP_SEARCH_ATTR,
+            // https://github.com/shaozi/ldap-authentication/issues/82
+            //attributes: ['jpegPhoto;binary', 'displayName', 'uid', 'mail', 'cn'],
+            explicitBufferAttributes: ["jpegPhoto"],
+
+            username: parsed.credential,
+            userPassword: parsed.password,
+        });
+        const uid = ldapResult[process.env.LDAP_SEARCH_ATTR!];
+        
+        return {
+            // Required to return email to identify the user, as the inputSchema does not have it
+            email: (Array.isArray(ldapResult.mail) ? ldapResult.mail[0] : ldapResult.mail) || `${uid}@local`,
+
+            // Atributes that will be saved in the user, regardless if is sign-in or sign-up
+            ldap_dn: ldapResult.dn,
+            name: ldapResult.displayName || uid,
+            description: ldapResult.description || "",
+            groups: ldapResult.objectClass && Array.isArray(ldapResult.objectClass) ? ldapResult.objectClass : [],
+            
+            // Callback that is called after sucessful sign-up (New user)
+            async onSignUp(userData) {
+                // Only on sign-up we save the image to disk and save the url in the user data
+                if(ldapResult.jpegPhoto) {
+                    userData.image = await saveImageToDisk(ldapResult.uid, ldapResult.jpegPhoto);
+                }
+
+                return userData;
+            },
         };
     },
 })

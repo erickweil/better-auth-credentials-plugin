@@ -1,4 +1,4 @@
-import { betterAuth } from "better-auth";
+import { betterAuth, User } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { fromNodeHeaders } from "better-auth/node";
 import { openAPI } from "better-auth/plugins";
@@ -26,9 +26,7 @@ async function saveImageToDisk(id: string, base64Jpeg: string) {
 export const auth = betterAuth({
     database: mongodbAdapter(db),
     emailAndPassword: {
-        // Disable email and password authentication
-        // Users will both sign-in and sign-up via LDAP
-        enabled: false,
+        enabled: true,
     },
     user: {
         additionalFields: {
@@ -54,7 +52,17 @@ export const auth = betterAuth({
     plugins: [
         openAPI(),
         credentials({
+            // User type to use, this will be used to type the user in the callback
+            // This way the zod schema will infer correctly, otherwise you would have to pass both generic types explicitly
+            UserType: {} as User & {
+                ldap_dn: string,
+                description: string,
+                groups: string[]
+            },
+            // Sucessful authenticated users will have a 'ldap' Account linked to them, no matter if they previously exists or not
             autoSignUp: true,
+            linkAccountIfExisting: true,
+            providerId: "ldap",
             inputSchema: z.object({
                 credential: z.string().min(1),
                 password: z.string().min(1)
@@ -85,7 +93,7 @@ export const auth = betterAuth({
                 const uid = ldapResult[process.env.LDAP_SEARCH_ATTR!];
                 
                 return {
-                    // Required to return email to identify the user
+                    // Required to return email to identify the user, as the inputSchema does not have it
                     email: (Array.isArray(ldapResult.mail) ? ldapResult.mail[0] : ldapResult.mail) || `${uid}@local`,
 
                     // Atributes that will be saved in the user, regardless if is sign-in or sign-up
@@ -94,10 +102,6 @@ export const auth = betterAuth({
                     description: ldapResult.description || "",
                     groups: ldapResult.objectClass && Array.isArray(ldapResult.objectClass) ? ldapResult.objectClass : [],
                     
-                    // Callback that is called after sucessful sign-in (Existing user)
-                    onSignIn(userData, user, account) {
-                        return userData;
-                    },
                     // Callback that is called after sucessful sign-up (New user)
                     async onSignUp(userData) {
                         // Only on sign-up we save the image to disk and save the url in the user data

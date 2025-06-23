@@ -1,6 +1,6 @@
 import express, { ErrorRequestHandler } from "express";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
-export function getApp(auth: any) {
+export function getApp(auth: any, callback?: (app: express.Express) => void) {
     const app = express();
 
     // https://www.better-auth.com/docs/installation
@@ -32,6 +32,10 @@ export function getApp(auth: any) {
             session: session?.session || null
         });
     });
+
+    if (callback) {
+        callback(app);
+    }
 
     app.use((req, res, next) => {
         res.status(404).json({ message: "Rota não encontrada" });
