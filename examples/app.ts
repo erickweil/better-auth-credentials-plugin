@@ -44,14 +44,17 @@ export function getApp(auth: any, callback?: (app: express.Express) => void) {
     // Middleware de tratamento de erros, sempre por último
     const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
         console.error("Erro no servidor:", err);
+        
         res.status(err.status || 500).json({ message: err.message || "Erro interno do servidor" });
     };
     app.use(errorHandler);
 
-    const port = process.env.PORT || 3000;
-    app.listen(port, () => {
-        console.log("Servidor está rodando na porta %d", port);
-    });
+    if(process.env.NODE_ENV !== "test") {
+        const port = process.env.PORT || 3000;
+        app.listen(port, () => {
+            console.log("Servidor está rodando na porta %d", port);
+        });
+    }
 
     return app;
 }

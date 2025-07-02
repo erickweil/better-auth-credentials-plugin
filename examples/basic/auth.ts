@@ -12,9 +12,7 @@ const db = client.db();
 export const auth = betterAuth({
     database: mongodbAdapter(db),
     emailAndPassword: {
-        // Disable email and password authentication
-        // Users will both sign-in and sign-up via Credentials plugin
-        enabled: false,
+        enabled: true,
     },
     plugins: [
         openAPI(),
@@ -23,7 +21,7 @@ export const auth = betterAuth({
             // Credentials login callback, this is called when the user submits the form
             async callback(ctx, parsed) {
                 // Just for demonstration purposes, half of the time we will fail the authentication
-                if (Math.random() < 0.5) {
+                if (parsed.email !== parsed.password) {
                     throw new Error("Authentication failed, please try again.");
                 }
                 

@@ -31,6 +31,7 @@ export const auth = betterAuth({
         openAPI(),
         credentials({
             autoSignUp: true,
+            providerId: "external-api",
             inputSchema: z.object({
                 username: z.string().min(1),
                 password: z.string().min(1),

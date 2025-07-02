@@ -1,6 +1,6 @@
 {
   "name": "better-auth-credentials-plugin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Generic credentials authentication plugin for Better Auth",
   "author": "Erick L. Weil",
   "license": "MIT",
@@ -29,47 +29,37 @@
   ],
   "types": "dist/index.d.ts",
   "scripts": {
-    "example:ldap": "cd examples/ldap-auth && node ../../dist/examples/ldap-auth/server.js",
-    "example:basic": "cd examples/basic && node ../../dist/examples/basic/server.js",
-    "example:external": "cd examples/external-api && node ../../dist/examples/external-api/server.js",
+    "example:ldap": "node ./dist/examples/ldap-auth/server.js",
+    "example:basic": "node ./dist/examples/basic/server.js",
+    "example:external": "node ./dist/examples/external-api/server.js",
     "build": "tsc",
     "lint": "npx eslint ./ --ext .ts",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose --runInBand",
-    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --runInBand"
-  },
-  "jest": {
-    "setupFiles": [
-      "<rootDir>/test/setupenv.js"
-    ],
-    "setupFilesAfterEnv": [
-      "<rootDir>/test/beforeall.js"
-    ],
-    "globalSetup": "<rootDir>/test/setupjest.js",
-    "globalTeardown": "<rootDir>/test/teardownjest.js",
-    "rootDir": "./dist"
+    "test": "vitest run"
   },
   "dependencies": {
     "better-auth": "^1.2.10",
     "zod": "^3.25.67"
   },
   "devDependencies": {
-    "ldap-authentication": "github:erickweil/ldap-authentication#add-explicitbufferattributes-option",
     "@eslint/compat": "^1.3.0",
-    "@jest/globals": "^30.0.0",
     "@types/express": "^5.0.3",
     "@types/node": "^24.0.1",
     "@types/supertest": "^6.0.3",
     "@typescript-eslint/eslint-plugin": "^8.34.0",
     "@typescript-eslint/parser": "^8.34.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "dotenv": "^16.5.0",
     "eslint": "^9.29.0",
     "eslint-plugin-import": "^2.31.0",
     "express": "^5.1.0",
-    "jest": "^30.0.0",
+    "happy-dom": "^18.0.1",
+    "jsdom": "^26.1.0",
+    "ldap-authentication": "github:shaozi/ldap-authentication#master",
     "mongodb": "^6.17.0",
     "nodemon": "^3.1.10",
     "supertest": "^7.1.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   },
   "type": "module"
 }

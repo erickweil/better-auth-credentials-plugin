@@ -1,3 +1,5 @@
+**/public
+
 # Typescript build
 dist/*
 !dist/.npmignore

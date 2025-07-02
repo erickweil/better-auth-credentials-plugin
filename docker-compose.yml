@@ -2,7 +2,7 @@ services:
   teste-mongo:
     restart: unless-stopped
     container_name: teste-mongo
-    image: mongo:6.0.7
+    image: mongo:8
     ports:
       - 27017:27017
     volumes:

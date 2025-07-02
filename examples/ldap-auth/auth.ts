@@ -17,8 +17,8 @@ const db = client.db();
 async function saveImageToDisk(id: string, base64Jpeg: string) {
     await mkdir("./public/images/users", { recursive: true });
 
-    const imageUrl = `./public/images/users/${id}.jpg`;
-    await writeFile(imageUrl, base64Jpeg, "base64");
+    const imageUrl = `/public/images/users/${id}.jpg`;
+    await writeFile("."+imageUrl, base64Jpeg, "base64");
 
     return imageUrl;
 }

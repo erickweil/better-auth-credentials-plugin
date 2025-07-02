@@ -89,8 +89,8 @@ You then must return an object with the following shape:
 
 ## Usage examples
 
-### Basic: Randomly authenticating users
-Example randomly authenticating users allowing any credentials, just to show how to use the plugin and the callbacks:
+### Basic: Accept only equal email and password
+Example using the plugin to authenticate users with a simple username and password, where the credentials must be the same as the password. This is just for demonstration purposes, 
 
 [examples/basic](examples/basic)
 ```javascript
@@ -99,7 +99,7 @@ credentials({
     // Credentials login callback, this is called when the user submits the form
     async callback(ctx, parsed) {
         // Just for demonstration purposes, half of the time we will fail the authentication
-        if (Math.random() < 0.5) {
+        if (parsed.email !== parsed.password) {
             throw new Error("Authentication failed, please try again.");
         }
         
@@ -263,14 +263,9 @@ docker compose up -d
 
 4. Run the example:
 ```bash
-cp ./examples/ldap-auth/.env.example ./examples/ldap-auth/.env
+cp .env.example .env
 npm run example:ldap
 ```
-> If on windows, this may not work, you will need to run the example manually:
-> ```bash
-> cd examples/ldap-auth
-> node ../../dist/examples/ldap-auth/server.js
-> ```
 
 5. Open your browser and go to `http://localhost:3000`. You should see the better-auth OpenAPI plugin docs
 
@@ -287,7 +282,6 @@ Using ldap sign-up should be done automatically after the first sucessful sign-i
 
 ## Running the tests
 
-> No tests yet
 ```bash
 docker compose up -d
 npm run test
