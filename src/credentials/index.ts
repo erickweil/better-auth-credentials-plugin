@@ -47,7 +47,7 @@ export type CredentialOptions<U extends User = User, Z extends (ZodTypeAny|undef
 		MaybePromise<CallbackResult<U>>;
 
 	/**
-	 * Schema for the input data, if not provided it will use the default schema allowing any non-empty string for credential and password
+	 * Schema for the input data, if not provided it will use the default schema that mirrors default email and password with rememberMe option.
 	 */
 	inputSchema?: Z;
 
@@ -58,7 +58,7 @@ export type CredentialOptions<U extends User = User, Z extends (ZodTypeAny|undef
 	autoSignUp?: boolean;
 
 	/**
-	 * If is allowed to link an account to an existing user without an Account of this provider
+	 * If is allowed to link an account to an existing user without an Account of this provider (No effect if autoSignUp is false).
 	 * 
 	 * Basically, if the user already exists, but with another provider (e.g. email and password), if this is true a 
 	 * new Account will be created and linked to this user (as if new login method), otherwise it will throw an error.
@@ -69,7 +69,7 @@ export type CredentialOptions<U extends User = User, Z extends (ZodTypeAny|undef
 	/**
 	 * The Id of the provider to be used for the account created, fallback to "credential", the same used by the email and password flow.
 	 * 
-	 * Obs: If you are using this plugin with the email and password plugin and did not change the providerId, users that have a password set will not be able to log in with this credentials plugin.
+	 * Obs: If you are using this plugin with the email and password plugin enabled and did not change the providerId, users that have a password set will not be able to log in with this credentials plugin.
 	 * @default "credential"
 	 */
 	providerId?: string;
@@ -84,7 +84,7 @@ export type CredentialOptions<U extends User = User, Z extends (ZodTypeAny|undef
 	 * This is used to infer the User type to be used, never used otherwise. If not provided it will be the default User type.
 	 * 
 	 * For example, to add a lastLogin input value: 
-	 * > {} as User & {lastLogin: Date}
+	 * @example {} as User & {lastLogin: Date}
 	 */
 	UserType?: U;
 };

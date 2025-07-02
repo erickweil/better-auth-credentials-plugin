@@ -6,6 +6,20 @@ import { testCases } from "../test-helpers.js";
 describe("Fake login, should fail when email and password are different", () => {
   const req = supertest(app);
 
+  test("Create normal email & password account", async () => {
+    const response = await req
+      .post("/api/auth/sign-up/email")
+      .set("Accept", "application/json")
+      .send({
+        name: "new-user",
+        email: "new.user@example.com",
+        password: "new.user@example.com"
+      })
+      .expect(200);
+
+    expect(response.body).toBeTruthy();
+  });
+
   testCases("success cases", [
     { email: "basic-user1@example.com", password: "basic-user1@example.com" }, 
     { email: "basic-user2@example.com", password: "basic-user2@example.com" },
@@ -45,18 +59,6 @@ describe("Fake login, should fail when email and password are different", () => 
         expect(session).toBeTruthy();
         expect(user.email).toBe(testCase.email);
       }
-  });
-
-  test("Create normal email & password account", async () => {
-    const response = await req
-      .post("/api/auth/sign-up/email")
-      .set("Accept", "application/json")
-      .send({
-        name: "new-user",
-        email: "new.user@example.com",
-        password: "new.user@example.com"
-      })
-      .expect(200);
   });
 
   testCases("fail cases", [
