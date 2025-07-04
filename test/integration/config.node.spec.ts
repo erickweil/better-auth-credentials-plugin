@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { credentials } from "../../src/credentials/index.js";
 import z3 from "zod";
-import { betterAuth, BetterAuthPlugin, User } from "better-auth";
+import { Account, betterAuth, BetterAuthPlugin, User } from "better-auth";
 import { MongoClient } from "mongodb";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { getApp } from "../../examples/app.js";
@@ -83,18 +83,22 @@ describe("Test config options calling the plugin", () => {
       linkAccountIfExisting: true,
       path: "/my-sign-in",
       providerId: "config",
-      UserType: {} as User & { a?: boolean },
       callback: (ctx, parsed) => {
         return {
           email: parsed.credential + "@example.com",
 
           onSignIn(userData, user, account) {
-            userData.name = user.name + "?";
+            userData.name = user.name + ":" + (account?.scope || "?");
             return userData;
           },
           onSignUp(userData) {
             userData.name = parsed.credential;
             return userData;
+          },
+          onLinkAccount(user) {
+            return {
+              scope: "test"
+            };
           },
         };
       }
@@ -113,7 +117,7 @@ describe("Test config options calling the plugin", () => {
     expect(response).toBeTruthy();
     expect(response.body).toMatchObject({
       user: {
-        name: "Email Config User?",
+        name: "Email Config User:?",
         email: "config_email2@example.com"
       }
     });
@@ -125,13 +129,27 @@ describe("Test config options calling the plugin", () => {
       password: "password"
     })
     .expect(200);
-
-    console.log(response2.body);
     
     expect(response2).toBeTruthy();
     expect(response2.body).toMatchObject({
       user: {
         name: "config_email3",
+        email: "config_email3@example.com"
+      }
+    });
+
+    const response3 = await req.post("/api/auth/my-sign-in")
+    .set("Accept", "application/json")
+    .send({
+      credential: "config_email3",
+      password: "password"
+    })
+    .expect(200);
+    
+    expect(response3).toBeTruthy();
+    expect(response3.body).toMatchObject({
+      user: {
+        name: "config_email3:test",
         email: "config_email3@example.com"
       }
     });

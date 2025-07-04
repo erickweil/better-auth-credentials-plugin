@@ -24,12 +24,13 @@ type DefaultCredentialsType = z.infer<typeof defaultCredentialsSchema>;
 type GetBodyParsed<Z> = Z extends z.ZodTypeAny ? z.infer<Z> : DefaultCredentialsType;
 type MaybePromise<T> = T | Promise<T>;
 
-export type CallbackResult<U extends User> = (Partial<U> & {
+export type CallbackResult<U extends User, A extends Account> = (Partial<U> & {
 	onSignUp?: (userData: Partial<U>) => MaybePromise<Partial<U>>;
-	onSignIn?: (userData: Partial<U>, user: U, account: Account) => MaybePromise<Partial<U>>;
+	onSignIn?: (userData: Partial<U>, user: U, account: A | null) => MaybePromise<Partial<U>>;
+	onLinkAccount?: (user: U) => MaybePromise<Partial<A>>;
 }) | null | undefined;
 
-export type CredentialOptions<U extends User = User, Z extends (ZodTypeAny|undefined) = undefined> = {	
+export type CredentialOptions<U extends User = User, A extends Account = Account, Z extends (ZodTypeAny|undefined) = undefined> = {	
 	/**
 	 * Function that receives the credential and password and returns a Promise with the partial user data to be updated.
 	 * 
@@ -39,12 +40,14 @@ export type CredentialOptions<U extends User = User, Z extends (ZodTypeAny|undef
 	 * If a custom inputSchema is set and it hasn't an `email` field, then you should return the `email` field to uniquely identify the user (Better auth can't operate without emails anyway).
 	 * 
 	 * The `onSignIn` and `onSignUp` callbacks are optional, but if returned they will be called to handle updating the user data differently based if the user is signing in or signing up.
+	 * 
+	 * The `onLinkAccount` callback is called whenever a Account is created or if the user already exists and an account is linked to the user, use it to store custom data on the Account.
 	 */
 	callback: (
 		ctx: EndpointContext<string, any>, 
 		parsed: GetBodyParsed<Z> 
 	) => 
-		MaybePromise<CallbackResult<U>>;
+		MaybePromise<CallbackResult<U,A>>;
 
 	/**
 	 * Schema for the input data, if not provided it will use the default schema that mirrors default email and password with rememberMe option.
@@ -87,9 +90,53 @@ export type CredentialOptions<U extends User = User, Z extends (ZodTypeAny|undef
 	 * @example {} as User & {lastLogin: Date}
 	 */
 	UserType?: U;
+
+	/**
+	 * The type of the Account to be used, if not provided it will be the default Account type.
+	 */
+	AccountType?: A;
 };
 
-export const credentials = <U extends User = User, Z extends (ZodTypeAny|undefined) = undefined>(options: CredentialOptions<U,Z>) => {
+/**
+ * Customized Credentials plugin for BetterAuth.
+ * 
+ * The options allow you to customize the input schema, the callback function, and other behaviors.
+ * 
+ * Summary of the stages of this authentication flow:
+ * 1. Validate the input data against `inputSchema`
+ * 2. Call the `callback` function
+ *   - If the callback throws an error, or doesn't return a object with user data, a generic 401 Unauthorized error is thrown.
+ * 3. Find the user by email (given by callback or parsed input), if exists proceed to [SIGN IN], if not [SIGN UP] (only when `autoSignUp` is true).
+ * 
+ * **[SIGN IN]**
+ * 
+ * 4. Find the Account with the providerId, or link an account to the user if `linkAccountIfExisting` is true.
+ * 5. Update the user with the data returned by the callback function (or the `onSignIn` callback function if provided).
+ * 
+ * **[SIGN UP]**
+ * 
+ * 4. Create a new User with the email and the data returned by the callback function (or the `onSignUp` callback function if provided).
+ * 5. Create a new Account for the user with the providerId.
+ * 
+ * **[AUTHENTICATED!]**
+ * 
+ * 6. Create a new session for the user and set the session cookie.
+ * 7. Return the user data and the session token.
+ * 
+ * @example
+ * ```ts
+ * credentials({
+ *   autoSignUp: true,
+ *   callback: async (ctx, parsed) => {
+ *     // 1. Verify the credentials
+ *
+ *     // 2. On success, return the user data
+ *     return {
+ *       email: parsed.email
+ *     };  
+ * })
+ */
+export const credentials = <U extends User = User, A extends Account = Account, Z extends (ZodTypeAny|undefined) = undefined>(options: CredentialOptions<U,A,Z>) => {
 	const zodSchema = options.inputSchema || defaultCredentialsSchema;
 
 	return {
@@ -131,11 +178,12 @@ export const credentials = <U extends User = User, Z extends (ZodTypeAny|undefin
 					},
 				},
 				async (ctx) => {
-					// The zod schema on body already validated the input
+					// ================== 1. Validate the input data ===================
+					// TODO: double check if the body was *really* parsed against the zod schema
 					const parsed = ctx.body as GetBodyParsed<Z>;
 
-					// ================== Authenticate with Credentials ===================
-					let callbackResult: CallbackResult<U>;
+					// ================== 2. Calling Callback Function ===================
+					let callbackResult: CallbackResult<U,A>;
 					try {
 						callbackResult = await options.callback(ctx, parsed);
 
@@ -152,7 +200,7 @@ export const credentials = <U extends User = User, Z extends (ZodTypeAny|undefin
 							message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 						});
 					}
-					let {onSignIn, onSignUp, email, ..._userData} = callbackResult;
+					let {onSignIn, onSignUp, onLinkAccount, email, ..._userData} = callbackResult;
 					let userData: Partial<U> = _userData as Partial<U>;
 
 					// Fallback email from body if not provided in callback result
@@ -160,13 +208,14 @@ export const credentials = <U extends User = User, Z extends (ZodTypeAny|undefin
 						email = "email" in parsed && typeof parsed.email === "string" ? parsed.email : undefined;
 						if(!email) {
 							ctx.context.logger.error("Email is required for credentials authentication", { credentials });
-							throw new APIError("UNAUTHORIZED", {
-								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
+							throw new APIError("UNPROCESSABLE_ENTITY", {
+								message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR,
+								details: "Email is required for credentials authentication",
 							});
 						}
 					}
 
-					// ================== Find User & Account, also Auto-SignUp if enabled ===================
+					// ================== 3. Find User by email ===================
 					let user: U | null = await ctx.context.adapter.findOne<U>({
 						model: "user",
 						where: [
@@ -179,16 +228,33 @@ export const credentials = <U extends User = User, Z extends (ZodTypeAny|undefin
 					
 					// If no user is found and autoSignUp is not enabled, throw an error
 					if(!options.autoSignUp && !user) {
-						// TODO: timing attack mitigation
+						// TODO: timing attack mitigation?
 						ctx.context.logger.error("User not found", { credentials });
 						throw new APIError("UNAUTHORIZED", {
 							message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 						});
-					} 
+					}
 
-					let account: Account | null = null;
+					// If email verification is required, return early
+					if (
+						user && !user.emailVerified &&
+						ctx.context.options.emailAndPassword?.requireEmailVerification
+					) {
+						await sendVerificationEmailFn(ctx, user);
+						throw new APIError("FORBIDDEN", {
+							message: CREDENTIALS_ERROR_CODES.EMAIL_NOT_VERIFIED,
+						});
+					}
+
+					let account: A | null = null;
 					if(!user) {
-						// Auto-SignUp: Create a new user and account
+						// ===================================================================
+						// =                          SIGN UP                                =
+						// =      Create a new User and Account, for this provider           =
+						// ===================================================================
+						// 
+
+						// ================== 4. create new User ====================
 						try {
 							if(onSignUp && typeof onSignUp === "function") {
 								userData = await onSignUp({email: email, ...userData});
@@ -204,9 +270,10 @@ export const credentials = <U extends User = User, Z extends (ZodTypeAny|undefin
 							delete userData.email;
 							const { name, ...restUserData } = userData;
 							user = await ctx.context.internalAdapter.createUser({
-								email: email,
+								email: email.toLowerCase(),
 								name: name || email, // Fallback to using email as name if not provided
-								...restUserData
+								emailVerified: false,
+								...restUserData,
 							}, ctx);
 						} catch (e) {
 							ctx.context.logger.error("Failed to create user", e);
@@ -218,45 +285,59 @@ export const credentials = <U extends User = User, Z extends (ZodTypeAny|undefin
 							});
 						}
 						if (!user) {
-							throw new APIError("BAD_REQUEST", {
+							throw new APIError("UNPROCESSABLE_ENTITY", {
 								message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR,
 							});
 						}
 
-						// Create an account for the user
+						// ================== 5. create new Account ====================
+						let accountData = {};
+						if(onLinkAccount && typeof onLinkAccount === "function") {
+							accountData = await onLinkAccount(user);
+						}
 						account = await ctx.context.internalAdapter.linkAccount(
 							{
 								userId: user.id,
 								providerId: options.providerId || "credential",
 								accountId: user.id,
+								...accountData
 							},
 							ctx,
 						);
 
 						// If the user is created, we can send the verification email if required
-						// In this case, just return the user without a token and no session is created (this mimics the behavior of the email and password sign-up flow)
 						if (
 							!user.emailVerified &&
 							(ctx.context.options.emailVerification?.sendOnSignUp ||
 							ctx.context.options.emailAndPassword?.requireEmailVerification)
 						) {
 							await sendVerificationEmailFn(ctx, user);
-							return ctx.json({
-								token: null,
-								user: {
-									id: user.id,
-									email: user.email,
-									name: user.name,
-									image: user.image,
-									emailVerified: user.emailVerified,
-									createdAt: user.createdAt,
-									updatedAt: user.updatedAt,
-								},
-							});
+
+							// If email verification is required, just return the user without a token and no session is created (this mimics the behavior of the email and password sign-up flow)
+							if(ctx.context.options.emailAndPassword?.requireEmailVerification) {
+								return ctx.json({
+									token: null,
+									user: {
+										id: user.id,
+										email: user.email,
+										name: user.name,
+										image: user.image,
+										emailVerified: user.emailVerified,
+										createdAt: user.createdAt,
+										updatedAt: user.updatedAt,
+									},
+								});
+							}
 						}
 					} else {
-						// Sign-in: Get the user account with the chosen provider
-						account = await ctx.context.adapter.findOne<Account>({
+						// ===================================================================
+						// =                          SIGN IN                                =
+						// =                  Find/Link Account, for this provider           =
+						// ===================================================================
+						// 
+						
+						// =============== 4.  Get the user account with the chosen provider ==============
+						account = await ctx.context.adapter.findOne<A>({
 							model: "account",
 							where: [
 								{
@@ -269,54 +350,25 @@ export const credentials = <U extends User = User, Z extends (ZodTypeAny|undefin
 								},
 							],
 						});
-						if(!options.linkAccountIfExisting) {
-							if (!account) {
-								ctx.context.logger.error("User exists but no account found for this provider", { credentials });
-								throw new APIError("UNAUTHORIZED", {
-									message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
-								});
-							}
-							// Prevent email & password created users from logging in with this credentials plugin, as they would have a password set
-							if (account?.password) {
-								ctx.context.logger.error("Shouldn't login with credentials, this user has a account with password", { credentials });
-								throw new APIError("UNAUTHORIZED", {
-									message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
-								});
-							}
-						} else {
-							if(!options.autoSignUp && !account) {
-								ctx.context.logger.error("Account for this provider not found", { credentials });
-								throw new APIError("UNAUTHORIZED", {
-									message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
-								});
-							}
 
-							if(!account) {
-								// Create an account for the user
-								account = await ctx.context.internalAdapter.linkAccount(
-									{
-										userId: user.id,
-										providerId: options.providerId || "credential",
-										accountId: user.id,
-									},
-									ctx,
-								);								
-							}
+						if((!options.autoSignUp || !options.linkAccountIfExisting) && !account) {
+							ctx.context.logger.error("User exists but no account found for this provider", { credentials });
+							throw new APIError("UNAUTHORIZED", {
+								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
+							});
 						}
 
-						if (
-							!user.emailVerified &&
-							ctx.context.options.emailAndPassword?.requireEmailVerification
-						) {
-							await sendVerificationEmailFn(ctx, user);
-							throw new APIError("FORBIDDEN", {
-								message: CREDENTIALS_ERROR_CODES.EMAIL_NOT_VERIFIED,
+						if(account && account.providerId === "credential" && account.password) {
+							ctx.context.logger.error("Shouldn't login with credentials, this user has a account with password", { credentials });
+							throw new APIError("UNAUTHORIZED", {
+								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 							});
 						}
 						
+						// =============== 5. Update user data ==============
 						try {
 							if(onSignIn && typeof onSignIn === "function") {
-								userData = await onSignIn({email: email, ...userData}, user, account!);
+								userData = await onSignIn({email: email, ...userData}, user, account);
 							}
 						} catch (e) {
 							ctx.context.logger.error("Failed to update user data on sign in", e);
@@ -326,6 +378,24 @@ export const credentials = <U extends User = User, Z extends (ZodTypeAny|undefin
 							throw new APIError("UNAUTHORIZED", {
 								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 							});
+						}
+
+						// Doing the linking after onSignIn callback, so if it fails no account is created
+						if(!account) {
+							// Create an account for the user if it doesn't exist
+							let accountData = {};
+							if(onLinkAccount && typeof onLinkAccount === "function") {
+								accountData = await onLinkAccount(user);
+							}
+							account = await ctx.context.internalAdapter.linkAccount(
+								{
+									userId: user.id,
+									providerId: options.providerId || "credential",
+									accountId: user.id,
+									...accountData
+								},
+								ctx,
+							);
 						}
 						
 						// Update the user with the new data (excluding email)
@@ -337,7 +407,11 @@ export const credentials = <U extends User = User, Z extends (ZodTypeAny|undefin
 						}
 					}
 					
-					// ================== Authenticated! Proceed with login flow ===================
+					// ===================================================================
+					// =                          AUTHENTICATED!                         =
+					// =                   Proceed with login flow                       =
+					// ===================================================================
+					
 					const rememberMe = "rememberMe" in parsed ? parsed.rememberMe : false;
 					const session = await ctx.context.internalAdapter.createSession(
 						user.id,
@@ -346,7 +420,7 @@ export const credentials = <U extends User = User, Z extends (ZodTypeAny|undefin
 					);
 					if (!session) {
 						ctx.context.logger.error("Failed to create session");
-						throw new APIError("UNAUTHORIZED", {
+						throw new APIError("BAD_REQUEST", {
 							message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR
 						});
 					}
@@ -355,6 +429,9 @@ export const credentials = <U extends User = User, Z extends (ZodTypeAny|undefin
 						{ session, user },
 						rememberMe === false,
 					);
+
+					// =============== Response with user data ==============
+					// TODO: how to return all fields with { returned: true } configured?
 					return ctx.json({
 						token: session.token,
 						user: {
