@@ -7,30 +7,18 @@ import { createAuthEndpoint, sendVerificationEmailFn } from "better-auth/api";
 import { CREDENTIALS_ERROR_CODES as CREDENTIALS_ERROR_CODES } from "./error-codes.js";
 import { setSessionCookie } from "better-auth/cookies";
 import { default as z, ZodTypeAny } from "zod";
-
-const defaultCredentialsSchema = z.object({
-	email: z.string({
-		description: "The email of the user",
-	}).min(1).email(),
-	password: z.string({
-		description: "The password of the user",
-	}).min(1),
-	rememberMe: z.boolean({
-		description: "Remember the user session",
-	}).optional(),
-});
-type DefaultCredentialsType = z.infer<typeof defaultCredentialsSchema>;
+import { defaultCredentialsSchema, DefaultCredentialsType } from "./schema.js";
 
 type GetBodyParsed<Z> = Z extends z.ZodTypeAny ? z.infer<Z> : DefaultCredentialsType;
 type MaybePromise<T> = T | Promise<T>;
 
-export type CallbackResult<U extends User, A extends Account> = (Partial<U> & {
+export type CallbackResult<U extends User> = (Partial<U> & {
 	onSignUp?: (userData: Partial<U>) => MaybePromise<Partial<U>>;
-	onSignIn?: (userData: Partial<U>, user: U, account: A | null) => MaybePromise<Partial<U>>;
-	onLinkAccount?: (user: U) => MaybePromise<Partial<A>>;
+	onSignIn?: (userData: Partial<U>, user: U, account: Account | null) => MaybePromise<Partial<U>>;
+	onLinkAccount?: (user: U) => MaybePromise<Partial<Account>>;
 }) | null | undefined;
 
-export type CredentialOptions<U extends User = User, A extends Account = Account, Z extends (ZodTypeAny|undefined) = undefined> = {	
+export type CredentialOptions<U extends User = User, P extends string = "/sign-in/credentials", Z extends (ZodTypeAny|undefined) = undefined> = {	
 	/**
 	 * Function that receives the credential and password and returns a Promise with the partial user data to be updated.
 	 * 
@@ -47,7 +35,7 @@ export type CredentialOptions<U extends User = User, A extends Account = Account
 		ctx: EndpointContext<string, any>, 
 		parsed: GetBodyParsed<Z> 
 	) => 
-		MaybePromise<CallbackResult<U,A>>;
+		MaybePromise<CallbackResult<U>>;
 
 	/**
 	 * Schema for the input data, if not provided it will use the default schema that mirrors default email and password with rememberMe option.
@@ -81,7 +69,7 @@ export type CredentialOptions<U extends User = User, A extends Account = Account
 	 * The path for the endpoint
 	 * @default "/sign-in/credentials"
 	 */
-	path?: string;
+	path?: P;
 
 	/**
 	 * This is used to infer the User type to be used, never used otherwise. If not provided it will be the default User type.
@@ -90,11 +78,6 @@ export type CredentialOptions<U extends User = User, A extends Account = Account
 	 * @example {} as User & {lastLogin: Date}
 	 */
 	UserType?: U;
-
-	/**
-	 * The type of the Account to be used, if not provided it will be the default Account type.
-	 */
-	AccountType?: A;
 };
 
 /**
@@ -136,14 +119,16 @@ export type CredentialOptions<U extends User = User, A extends Account = Account
  *     };  
  * })
  */
-export const credentials = <U extends User = User, A extends Account = Account, Z extends (ZodTypeAny|undefined) = undefined>(options: CredentialOptions<U,A,Z>) => {
-	const zodSchema = options.inputSchema || defaultCredentialsSchema;
+export const credentials = <U extends User = User, P extends string = "/sign-in/credentials", Z extends ZodTypeAny = typeof defaultCredentialsSchema>(options: CredentialOptions<U, P, Z>) => {
+	const zodSchema = (options.inputSchema || defaultCredentialsSchema) as Z;
 
 	return {
 		id: "credentials",
 		endpoints: {
 			signInUsername: createAuthEndpoint(
-				options.path || "/sign-in/credentials",
+				// Endpoints are inferred from the server plugin by adding a $InferServerPlugin key to the client plugin.
+				// Without this 'as' key the inferred client plugin would not work properly.
+				(options.path || "/sign-in/credentials") as P,
 				{
 					method: "POST",
 					body: zodSchema,
@@ -183,7 +168,7 @@ export const credentials = <U extends User = User, A extends Account = Account, 
 					const parsed = ctx.body as GetBodyParsed<Z>;
 
 					// ================== 2. Calling Callback Function ===================
-					let callbackResult: CallbackResult<U,A>;
+					let callbackResult: CallbackResult<U>;
 					try {
 						callbackResult = await options.callback(ctx, parsed);
 
@@ -246,7 +231,7 @@ export const credentials = <U extends User = User, A extends Account = Account, 
 						});
 					}
 
-					let account: A | null = null;
+					let account: Account | null = null;
 					if(!user) {
 						// ===================================================================
 						// =                          SIGN UP                                =
@@ -337,7 +322,7 @@ export const credentials = <U extends User = User, A extends Account = Account, 
 						// 
 						
 						// =============== 4.  Get the user account with the chosen provider ==============
-						account = await ctx.context.adapter.findOne<A>({
+						account = await ctx.context.adapter.findOne<Account>({
 							model: "account",
 							where: [
 								{

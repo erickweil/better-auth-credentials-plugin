@@ -72,7 +72,6 @@ The full set of options for the plugin is as follows:
 | `providerId`                | Id of the Account provider defaults to `credential` |
 | `path`                | Path of the route endpoint, defaults to `/sign-in/credentials` |
 | `UserType`                | If you have aditional fields in the User type and want correct typescript types in the callbacks, you can set here it's type, example: `{} as User & {lastLogin: Date}` |
-| `AccountType`                | If you have aditional fields in the Account type and want correct typescript types in the callbacks, you can set here it's type, example: `{} as Account & {myPassw: string}` |
 
 If the callback throws an error or returns a falsy value, auth will fail with generic 401 Invalid Credentials error.
 

@@ -5,5 +5,9 @@ export {
 export { 
     credentials, 
     CallbackResult, 
-    CredentialOptions 
+    CredentialOptions,
 } from "./src/credentials/index.js";
+
+export {
+    defaultCredentialsSchema
+} from "./src/credentials/schema.js";
