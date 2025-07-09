@@ -81,12 +81,15 @@ You then must return an object with the following shape:
 | `...userData`              | User data that will be used to create or update the user in the database, this must contain an `email` field if the inputSchema doesn't have it |
 | `onSignIn`                 | Callback that will be called after the user is sucesfully signed in. It receives the user data returned above, User and Account from database as parameters, and you should return the mutated user data to update (The account linking happens after this callback, so it can be null) |
 | `onSignUp`                 | Callback that will be called after the user is sucesfully signed up (only if autoSignUp is true). It receives the user data returned above, and you should return the mutated user data with the fields a new user should have |
-| `onLinkAccount`            | Callback that will be called when a Account is linked to the user. Can happen in a fresh new user sign up or the first time a existing user signs in with this credentials provider. It receives the User from database as parameter, and you should return additional fields to put in the Account being created |
+| `onLinkAccount`            | Callback that will be called when a Account is linked to the user. Can happen in a fresh new user sign up or the first time a existing user signs in with this credentials provider. It receives the User from database as parameter, and you should return additional fields to put in the Account being created. You shouldn't throw errors on this callback, because when it runs the user was already created in the database |
 
 > All those callbacks can be async if you want.
 
 - If the onSignIn throws an error, auth will fail with generic 401 Invalid Credentials error, you can return a falsy value or an empty object to skip updating the user data in the database.
 - If the onSignUp returns a object without email field, falsy value or throws an error, auth will fail with generic 401 Invalid Credentials error.
+- OnLinkAccount shouldn't throw errors nor return a falsy value, in the moment this callback is called the user was already created, so you'll leave a user without an account linked to it, which could cause issues.
+
+> If the error you throw is a instance of APIError from `better-call` package, the error returned will be the one you threw instead of the generic 401 Invalid Credentials error, so this way you can return a more specific error code and message to the user if needed.
 
 ## Usage examples
 

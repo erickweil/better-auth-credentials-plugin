@@ -1,9 +1,10 @@
 import { getTestInstance } from "@better-auth-kit/tests";
 import { beforeAll, describe, expect, test } from "vitest";
-import { getPluginAuth } from "../plugin.js";
+import { defaultBetterAuthOptions } from "../plugin.js";
 import { credentials, credentialsClient } from "../../index.js";
-import { User } from "better-auth";
+import { betterAuth, User } from "better-auth";
 import z3 from "zod";
+import { bearer } from "better-auth/plugins";
 
 describe("Test using the plugin in the client", () => {
     const schema = z3.object({
@@ -12,21 +13,27 @@ describe("Test using the plugin in the client", () => {
     });
 
     let _instance = getTestInstance(
-        getPluginAuth({
-            autoSignUp: true,
-            path: "/sign-in/my-login",
-            providerId: "my-login",
-            inputSchema: schema,            
-            callback(ctx, parsed) {
-                if (parsed._email !== parsed._password) {
-                    throw new Error("Authentication failed, please try again.");
-                } else {
-                    return {
-                        email: parsed._email,
-                        name: parsed._email.split("@")[0]
-                    };
-                }
-            },
+        betterAuth({
+            ...defaultBetterAuthOptions,
+            plugins: [
+                bearer(),
+                credentials({
+                    autoSignUp: true,
+                    path: "/sign-in/my-login",
+                    providerId: "my-login",
+                    inputSchema: schema,            
+                    callback(ctx, parsed) {
+                        if (parsed._email !== parsed._password) {
+                            throw new Error("Authentication failed, please try again.");
+                        } else {
+                            return {
+                                email: parsed._email,
+                                name: parsed._email.split("@")[0]
+                            };
+                        }
+                    }
+                }),
+            ]
         }),
         {
             clientOptions: {
