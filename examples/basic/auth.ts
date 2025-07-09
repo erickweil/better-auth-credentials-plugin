@@ -20,7 +20,6 @@ export const auth = betterAuth({
             autoSignUp: true,
             // Credentials login callback, this is called when the user submits the form
             async callback(ctx, parsed) {
-                // Just for demonstration purposes, half of the time we will fail the authentication
                 if (parsed.email !== parsed.password) {
                     throw new Error("Authentication failed, please try again.");
                 }
