@@ -13,8 +13,8 @@ type GetBodyParsed<Z> = Z extends z.ZodTypeAny ? z.infer<Z> : DefaultCredentials
 type MaybePromise<T> = T | Promise<T>;
 
 export type CallbackResult<U extends User> = (Partial<U> & {
-	onSignUp?: (userData: Partial<U>) => MaybePromise<Partial<U>>;
-	onSignIn?: (userData: Partial<U>, user: U, account: Account | null) => MaybePromise<Partial<U>>;
+	onSignUp?: (userData: Partial<U>) => MaybePromise<Partial<U> | null>;
+	onSignIn?: (userData: Partial<U>, user: U, account: Account | null) => MaybePromise<Partial<U> | null>;
 	onLinkAccount?: (user: U) => MaybePromise<Partial<Account>>;
 }) | null | undefined;
 
@@ -242,7 +242,11 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 						// ================== 4. create new User ====================
 						try {
 							if(onSignUp && typeof onSignUp === "function") {
-								userData = await onSignUp({email: email, ...userData});
+								const newData = await onSignUp({email: email, ...userData});
+								if(!newData) {
+									throw new Error("onSignUp callback returned null, failed sign up");
+								}
+								userData = newData;
 							}
 
 							if(!userData || !email) {
@@ -353,7 +357,11 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 						// =============== 5. Update user data ==============
 						try {
 							if(onSignIn && typeof onSignIn === "function") {
-								userData = await onSignIn({email: email, ...userData}, user, account);
+								const newData = await onSignIn({email: email, ...userData}, user, account);
+								if(!newData) {
+									throw new Error("onSignIn callback returned null, failed on sign in");
+								}
+								userData = newData;
 							}
 						} catch (e) {
 							ctx.context.logger.error("Failed to update user data on sign in", e);

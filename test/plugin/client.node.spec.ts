@@ -24,7 +24,8 @@ describe("Test using the plugin in the client", () => {
                     inputSchema: schema,            
                     callback(ctx, parsed) {
                         if (parsed._email !== parsed._password) {
-                            throw new Error("Authentication failed, please try again.");
+                            console.error("Authentication failed mismatch for email and password");
+                            return null; // It is possible to return null to indicate failure
                         } else {
                             return {
                                 email: parsed._email,
@@ -72,6 +73,7 @@ describe("Test using the plugin in the client", () => {
         });
         
         expect(error).toBeDefined();
+        expect(error?.status).toBe(401);
         expect(data).toBeNull();
     });
 
@@ -90,6 +92,7 @@ describe("Test using the plugin in the client", () => {
         });
         
         expect(error).toBeDefined();
+        expect(error?.status).toBe(401);
         expect(data).toBeNull();
     });
 });

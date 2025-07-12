@@ -7,12 +7,12 @@ import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { getApp } from "../../examples/app.js";
 import supertest from "supertest";
 import TestAgent from "supertest/lib/agent.js";
+import { testCases } from "../test-helpers.js";
 
-describe("Test config options calling the plugin", () => {
-  const client = new MongoClient(process.env.DB_URL_AUTH!);
-  const db = client.db();
+const client = new MongoClient(process.env.DB_URL_AUTH!);
+const db = client.db();
 
-  function buildAppPlugin(plugin: BetterAuthPlugin) {
+function buildAppPlugin(plugin: BetterAuthPlugin) {
     const auth = betterAuth({
       database: mongodbAdapter(db),
       emailAndPassword: {
@@ -28,14 +28,15 @@ describe("Test config options calling the plugin", () => {
     return { app, req };
   }
 
-  test("Minimal config", async () => {
-    const { req } = buildAppPlugin(credentials({
-      autoSignUp: true,
-      callback(ctx, parsed) {
-        return {};
-      },
-    }));
+describe("Test minimal config options calling the plugin", () => {
+  const { req } = buildAppPlugin(credentials({
+    autoSignUp: true,
+    callback(ctx, parsed) {
+      return {};
+    },
+  }));
 
+  test("Minimal config", async () => {
     // Sign up a new user
     const response = await req.post("/api/auth/sign-in/credentials")
     .set("Accept", "application/json")
@@ -72,86 +73,107 @@ describe("Test config options calling the plugin", () => {
     })
     .expect(401);
   });
+});
 
-  test("All options", async () => {
-    const { req } = buildAppPlugin(credentials({
-      autoSignUp: true,
-      inputSchema: z3.object({
-        credential: z3.string().min(1),
-        password: z3.string().min(1),
-      }),
-      linkAccountIfExisting: true,
-      path: "/my-sign-in",
-      providerId: "config",
-      callback: (ctx, parsed) => {
-        return {
-          email: parsed.credential + "@example.com",
+describe("Test all config options calling the plugin", () => {
+  const { req } = buildAppPlugin(credentials({
+    autoSignUp: true,
+    inputSchema: z3.object({
+      credential: z3.string().min(1),
+      password: z3.string().min(1),
+    }),
+    linkAccountIfExisting: true,
+    path: "/my-sign-in",
+    providerId: "config",
+    callback: (ctx, parsed) => {
+      return {
+        email: parsed.credential + "@example.com",
 
-          onSignIn(userData, user, account) {
-            userData.name = user.name + ":" + (account?.scope || "?");
-            return userData;
-          },
-          onSignUp(userData) {
-            userData.name = parsed.credential;
-            return userData;
-          },
-          onLinkAccount(user) {
-            return {
-              scope: "test"
-            };
-          },
-        };
-      }
-    }));
+        onSignIn(userData, user, account) {
+          if(!account) {
+            if(parsed.password.length < 6) {
+              return null;
+            }
+          } else {
+            if(parsed.password !== account?.password) {
+              return null;
+            }
+          }
 
+          userData.name = user.name + ":" + (account?.scope || "?");
+          return userData;
+        },
+        onSignUp(userData) {
+          if(parsed.password.length < 6) {
+            return null;
+          }
+
+          userData.name = parsed.credential;
+          return userData;
+        },
+        onLinkAccount(user) {
+          return {
+            scope: "test",
+            password: parsed.password
+          };
+        },
+      };
+    }
+  }));
+  
+  testCases("Test cases config options", [
+    { 
+      status: 401, 
+      body: {credential: "config_email2", password: "passw"}, 
+      match: {}
+    }, // Invalid Sign up
+    { 
+      status: 200, 
+      body: {credential: "config_email2", password: "password"}, 
+      match: {name: "Email Config User:?"}  
+    }, // Sign up
+    {
+      status: 200, 
+      body: {credential: "config_email2", password: "password"}, 
+      match: {name: "Email Config User:?:test"}  
+    }, // Sign in
+    { 
+      status: 401, 
+      body: {credential: "config_email2", password: "wrong-pass"}, 
+      match: {}  
+    }, // Mismatch
+
+    { 
+      status: 401, 
+      body: {credential: "config_email3", password: "passw"}, 
+      match: {}
+    }, // Invalid Sign up
+    { 
+      status: 200, 
+      body: {credential: "config_email3", password: "password"}, 
+      match: {name: "config_email3"}  
+    }, // Sign up
+    {
+      status: 200, 
+      body: {credential: "config_email3", password: "password"}, 
+      match: {name: "config_email3:test"}  
+    }, // Sign in
+    { 
+      status: 401, 
+      body: {credential: "config_email3", password: "wrong-pass"}, 
+      match: {}  
+    }, // Mismatch
+  ], async ({status, body, match}) => {
     const response = await req.post("/api/auth/my-sign-in")
     .set("Accept", "application/json")
-    .send({
-      credential: "config_email2",
-      password: "password"
-    })
-    .expect(200);
+    .send(body)
+    .expect(status);
 
-    console.log(response.body);
-    
-    expect(response).toBeTruthy();
-    expect(response.body).toMatchObject({
-      user: {
-        name: "Email Config User:?",
-        email: "config_email2@example.com"
-      }
-    });
+    if(status >= 200 && status < 300) {
+      const respBody = response.body;
+      expect(respBody?.user).toBeTruthy();
 
-    const response2 = await req.post("/api/auth/my-sign-in")
-    .set("Accept", "application/json")
-    .send({
-      credential: "config_email3",
-      password: "password"
-    })
-    .expect(200);
-    
-    expect(response2).toBeTruthy();
-    expect(response2.body).toMatchObject({
-      user: {
-        name: "config_email3",
-        email: "config_email3@example.com"
-      }
-    });
-
-    const response3 = await req.post("/api/auth/my-sign-in")
-    .set("Accept", "application/json")
-    .send({
-      credential: "config_email3",
-      password: "password"
-    })
-    .expect(200);
-    
-    expect(response3).toBeTruthy();
-    expect(response3.body).toMatchObject({
-      user: {
-        name: "config_email3:test",
-        email: "config_email3@example.com"
-      }
-    });
+      expect(respBody.user).toMatchObject(match);
+    }
   });
 });

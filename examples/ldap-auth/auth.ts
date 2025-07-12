@@ -31,11 +31,6 @@ export const auth = betterAuth({
     user: {
         additionalFields: {
             // Add additional fields to the user model
-            ldap_dn: {
-                type: "string",
-                returned: false,
-                required: false,
-            },
             description: {
                 type: "string",
                 returned: true,
@@ -55,7 +50,6 @@ export const auth = betterAuth({
             // User type to use, this will be used to type the user in the callback
             // This way the zod schema will infer correctly, otherwise you would have to pass both generic types explicitly
             UserType: {} as User & {
-                ldap_dn: string,
                 description: string,
                 groups: string[]
             },
@@ -89,6 +83,10 @@ export const auth = betterAuth({
 
                     username: parsed.credential,
                     userPassword: parsed.password,
+
+                    groupClass: "Group",
+                    groupsSearchBase: process.env.LDAP_BASE_DN,
+                    groupMemberAttribute: "member",
                 });
                 const uid = ldapResult[process.env.LDAP_SEARCH_ATTR!];
                 
@@ -97,11 +95,22 @@ export const auth = betterAuth({
                     email: (Array.isArray(ldapResult.mail) ? ldapResult.mail[0] : ldapResult.mail) || `${uid}@local`,
 
                     // Atributes that will be saved in the user, regardless if is sign-in or sign-up
-                    ldap_dn: ldapResult.dn,
                     name: ldapResult.displayName || uid,
                     description: ldapResult.description || "",
-                    groups: ldapResult.objectClass && Array.isArray(ldapResult.objectClass) ? ldapResult.objectClass : [],
+                    groups: ldapResult.groups && Array.isArray(ldapResult.groups) ? ldapResult.groups : [],
                     
+                    // Callback that is called after sucessully sign-in (Existing user)
+                    async onSignIn(userData, user, account) {
+                        if(!account) {
+                            // If is the first time this provider is used
+                            if(ldapResult.jpegPhoto && !user.image) {
+                                userData.image = await saveImageToDisk(ldapResult.uid, ldapResult.jpegPhoto);
+                            }
+                        }
+                        
+                        return userData;
+                    },
+
                     // Callback that is called after sucessful sign-up (New user)
                     async onSignUp(userData) {
                         // Only on sign-up we save the image to disk and save the url in the user data
@@ -110,6 +119,13 @@ export const auth = betterAuth({
                         }
 
                         return userData;
+                    },
+
+                    // Callback that is called when a account is linked to an existing user or when the user signs up first time
+                    async onLinkAccount(user) {
+                        return {
+                            accountId: ldapResult.dn
+                        };
                     },
                 };
             },

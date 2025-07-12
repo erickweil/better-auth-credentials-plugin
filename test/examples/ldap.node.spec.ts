@@ -6,10 +6,27 @@ import { testCases } from "../test-helpers.js";
 describe("LDAP, should authenticate users on LDAP server", () => {
   const req = supertest(app);
 
+
+  test("Create normal email & password account", async () => {
+    const response = await req
+      .post("/api/auth/sign-up/email")
+      .set("Accept", "application/json")
+      .send({
+        name: "new-ldap-user",
+        email: "bender@planetexpress.com",
+        password: "bender@planetexpress.com"
+      })
+      .expect(200);
+
+    expect(response.body).toBeTruthy();
+  });
+
   testCases("success cases", [
-    { credential: "fry", password: "fry" }, 
-    { credential: "professor", password: "professor" },
-    { credential: "professor", password: "professor" }  // Usuário existente
+    { credential: "fry", password: "fry" },  // Sign-up
+    { credential: "professor", password: "professor" }, // Sign-up
+    { credential: "professor", password: "professor" }, // Sign-in
+    { credential: "bender", password: "bender" }, // Account linking
+    { credential: "bender", password: "bender" } // Sign-in
   ], async (testCase) => {   
       let cookies = "";
       { // 1 - Deve fazer login
@@ -44,11 +61,11 @@ describe("LDAP, should authenticate users on LDAP server", () => {
         expect(user).toBeTruthy();
         expect(session).toBeTruthy();
 
-        const { image, ldap_dn, groups, description } = user;
+        const { image, groups, description } = user;
         
-        expect(ldap_dn).toBeUndefined(); // Não deve retornar o DN do usuário (Salvo no banco mas não retorna)
         expect(image).toBeTruthy();
         expect(groups).toBeTruthy();
+        expect(Array.isArray(groups)).toBeTruthy();
         expect(description).toBeTruthy();
 
         // Verificar se imagem foi salva
@@ -58,6 +75,24 @@ describe("LDAP, should authenticate users on LDAP server", () => {
             .expect(200);
         expect(imageResponse.headers["content-type"]).toBe("image/jpeg");
         expect(imageResponse.body).toBeTruthy();
+        
+      }
+
+      {
+        // 3 verificar Account
+        const response = await req
+            .get("/api/auth/list-accounts")
+            .set("Accept", "application/json")
+            .set("Cookie", cookies) // Envia o cookie de sessão
+            .expect(200);
+
+        expect(response?.body).toBeTruthy();
+        expect(response?.body.length).toBeGreaterThanOrEqual(1);
+
+        const accountLdap = response?.body.find((account: any) => account.provider === "ldap");
+        expect(accountLdap).toBeTruthy();
+        expect(accountLdap.provider).toBe("ldap");
+        expect(accountLdap.accountId).toBeTruthy();
       }
   });
 
@@ -68,7 +103,7 @@ describe("LDAP, should authenticate users on LDAP server", () => {
     { status: 400, credential: null, password: null },
     { status: 401, credential: "abcd", password: "wrongpassword" },
     { status: 401, credential: "fry", password: "wrongpassword" },
-    { status: 401, credential: "bender", password: "password3" }
+    { status: 401, credential: "amy", password: "password3" }
   ], async (testCase) => {    
     const { status, ...body } = testCase;
 

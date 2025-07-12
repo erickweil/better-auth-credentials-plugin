@@ -49,10 +49,12 @@ export const auth = betterAuth({
                         if(!account.password) {
                             // hash the password to prevent timing attacks
                             const hashedPassword = await argon2.hash(parsed.password);
-                            throw new Error("Account password not found.");
+                            console.error("Account password not found.");
+                            return null;
                         }
                         if (!(await argon2.verify(account.password, parsed.password))) {
-                            throw new Error("Password didn't match.");
+                            console.error("Password didn't match.");
+                            return null;
                         }
                         // Password matches, return user data
                         return userData;

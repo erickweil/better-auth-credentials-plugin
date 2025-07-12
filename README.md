@@ -85,7 +85,7 @@ You then must return an object with the following shape:
 
 > All those callbacks can be async if you want.
 
-- If the onSignIn throws an error, auth will fail with generic 401 Invalid Credentials error, you can return a falsy value or an empty object to skip updating the user data in the database.
+- If the onSignIn returns a falsy value or throws an error, auth will fail with generic 401 Invalid Credentials error, you can return an empty object to skip updating the user data in the database.
 - If the onSignUp returns a object without email field, falsy value or throws an error, auth will fail with generic 401 Invalid Credentials error.
 - OnLinkAccount shouldn't throw errors nor return a falsy value, in the moment this callback is called the user was already created, so you'll leave a user without an account linked to it, which could cause issues.
 
