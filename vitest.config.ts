@@ -7,11 +7,10 @@ export default defineConfig({
     include: ["test\/**\/*.{test,spec}.{ts,js}"],
     env: {
         // Define environment variables for tests
-        NODE_ENV: "test",
-        DB_URL_AUTH: "mongodb://127.0.0.1:27017/better-auth-test"
+        NODE_ENV: "test"
     },
     silent: "passed-only",
-    globalSetup: ["test\/setup.ts"],
+    setupFiles: ["test\/setupEach.ts"],
     projects: [
         {
             extends: true,

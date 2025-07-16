@@ -3,7 +3,10 @@ import app from "../../examples/ldap-auth/server.js";
 import supertest  from "supertest";
 import { testCases } from "../test-helpers.js";
 
-describe("LDAP, should authenticate users on LDAP server", () => {
+// Check if the LDAP server is running
+const isLdapConfigured = process.env.LDAP_URL && process.env.LDAP_BIND_DN && process.env.LDAP_PASSW && process.env.LDAP_BASE_DN && process.env.LDAP_SEARCH_ATTR;
+
+describe.skipIf(!isLdapConfigured)("LDAP, should authenticate users on LDAP server", () => {
   const req = supertest(app);
 
 
