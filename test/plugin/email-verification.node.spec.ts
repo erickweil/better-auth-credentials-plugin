@@ -3,9 +3,7 @@ import { beforeAll, describe, expect, test } from "vitest";
 import { defaultBetterAuthOptions } from "../plugin.js";
 import { credentials, credentialsClient } from "../../index.js";
 
-import { APIError, EndpointContext } from "better-call";
 import { betterAuth, User } from "better-auth";
-import z3 from "zod";
 import { bearer } from "better-auth/plugins";
 
 describe("Test using the plugin with email verification ON", () => {
@@ -83,7 +81,7 @@ describe("Test using the plugin with email verification ON", () => {
         const user = data?.user;
         const token = data?.token;
         expect(user).toBeTruthy();
-        expect(user!.name).toBe("email_user1@example.com");
+        expect(user!.name).toBeUndefined();
         expect(token).toBeNull(); // Should not be able to sign in yet because email verification is required
         expect(lastEmailSent).toBeTruthy(); // Should have sent a verification email
         }
@@ -125,7 +123,7 @@ describe("Test using the plugin with email verification ON", () => {
         const user = data?.user;
         const token = data?.token;
         expect(user).toBeTruthy();
-        expect(user!.name).toBe("email_user1@example.com");
+        expect(user!.name).toBeUndefined();
         expect(user!.emailVerified).toBe(true);
         
         expect(token).toBeTruthy();

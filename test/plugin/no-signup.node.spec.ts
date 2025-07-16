@@ -3,7 +3,6 @@ import { beforeAll, describe, expect, test } from "vitest";
 import { defaultBetterAuthOptions } from "../plugin.js";
 import { credentials, credentialsClient } from "../../index.js";
 import { betterAuth, User } from "better-auth";
-import z3 from "zod";
 import { bearer } from "better-auth/plugins";
 import { testCases } from "../test-helpers.js";
 

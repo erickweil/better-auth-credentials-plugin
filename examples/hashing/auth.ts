@@ -42,7 +42,10 @@ export const auth = betterAuth({
                         if (!account) {
                             // Because linkAccountIfExisting is true, this can happen: 
                             // First time sign in using this provider, but on an existing user (created by another provider, email/password, social, etc...)
-                            return registerFn(user, false);
+                            return registerFn({
+                                name: user.name,
+                                image: user.image
+                            }, false);
                         }
 
                         // Check password

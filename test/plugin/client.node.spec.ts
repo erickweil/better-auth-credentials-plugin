@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, test } from "vitest";
 import { defaultBetterAuthOptions } from "../plugin.js";
 import { credentials, credentialsClient } from "../../index.js";
 import { betterAuth, User } from "better-auth";
-import z3 from "zod";
+import z3 from "zod/v3";
 import { bearer } from "better-auth/plugins";
 
 describe("Test using the plugin in the client", () => {

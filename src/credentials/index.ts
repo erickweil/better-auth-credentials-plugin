@@ -6,7 +6,7 @@ import { Account, BetterAuthPlugin, User } from "better-auth";
 import { createAuthEndpoint, sendVerificationEmailFn } from "better-auth/api";
 import { CREDENTIALS_ERROR_CODES as CREDENTIALS_ERROR_CODES } from "./error-codes.js";
 import { setSessionCookie } from "better-auth/cookies";
-import { default as z, ZodTypeAny } from "zod";
+import { default as z, ZodTypeAny } from "zod/v3";
 import { defaultCredentialsSchema, DefaultCredentialsType } from "./schema.js";
 
 type GetBodyParsed<Z> = Z extends z.ZodTypeAny ? z.infer<Z> : DefaultCredentialsType;
@@ -39,6 +39,8 @@ export type CredentialOptions<U extends User = User, P extends string = "/sign-i
 
 	/**
 	 * Schema for the input data, if not provided it will use the default schema that mirrors default email and password with rememberMe option.
+	 * 
+	 * (Must be a zod/v3 schema)
 	 */
 	inputSchema?: Z;
 
@@ -93,13 +95,18 @@ export type CredentialOptions<U extends User = User, P extends string = "/sign-i
  * 
  * **[SIGN IN]**
  * 
- * 4. Find the Account with the providerId, or link an account to the user if `linkAccountIfExisting` is true.
- * 5. Update the user with the data returned by the callback function (or the `onSignIn` callback function if provided).
+ * 4. Find the Account with the providerId
+ *   - If the account is not found, and `linkAccountIfExisting` or `autoSignUp` is false, login fails with a 401 Unauthorized error.
+ * 5. If provided, Call the `onSignIn` callback function, but yet don't update the user data.
+ * 6. If no Account was found on step 4. call the `onLinkAccount` callback function to get the account data to be stored, and then create a new Account for the user with the providerId.
+ * 7. Update the user with the provided data (Either returned by the auth callback function or the `onSignIn` callback function).
  * 
  * **[SIGN UP]**
  * 
- * 4. Create a new User with the email and the data returned by the callback function (or the `onSignUp` callback function if provided).
- * 5. Create a new Account for the user with the providerId.
+ * 4. If provided, call the `onSignUp` callback function to get the user data to be stored.
+ * 5. Create a new User with the provided data (Either returned by the auth callback function or the `onSignUp` callback function).
+ * 5. If provided, call the `onLinkAccount` callback function to get the account data to be stored
+ * 6. Then create a new Account for the user with the providerId.
  * 
  * **[AUTHENTICATED!]**
  * 
@@ -199,6 +206,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 							});
 						}
 					}
+					email = email.toLowerCase();
 
 					// ================== 3. Find User by email ===================
 					let user: U | null = await ctx.context.adapter.findOne<U>({
@@ -259,8 +267,8 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 							delete userData.email;
 							const { name, ...restUserData } = userData;
 							user = await ctx.context.internalAdapter.createUser({
-								email: email.toLowerCase(),
-								name: name || email, // Fallback to using email as name if not provided
+								email: email,
+								name: name!, // Yes, the type is wrong, NAME IS OPTIONAL
 								emailVerified: false,
 								...restUserData,
 							}, ctx);

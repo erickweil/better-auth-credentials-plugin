@@ -1,6 +1,6 @@
 // Adaptado de: https://github.com/better-auth/better-auth/blob/main/packages/better-auth/src/plugins/username/client.ts
 import { BetterAuthClientPlugin, User } from "better-auth";
-import { default as z, ZodTypeAny } from "zod";
+import { default as z, ZodTypeAny } from "zod/v3";
 
 import type { credentials } from "./index.js";
 import { defaultCredentialsSchema } from "./schema.js";

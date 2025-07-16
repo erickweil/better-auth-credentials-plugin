@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { credentials } from "../../src/credentials/index.js";
-import z3 from "zod";
+import z3 from "zod/v3";
 import { Account, betterAuth, BetterAuthPlugin, User } from "better-auth";
 import { MongoClient } from "mongodb";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
@@ -49,10 +49,11 @@ describe("Test minimal config options calling the plugin", () => {
     expect(response).toBeTruthy();
     expect(response.body).toMatchObject({
       user: {
-        name: "config_email@example.com",
         email: "config_email@example.com"
       }
     });
+    expect(response.body.user.name).toBeUndefined();
+
     
     // Shouldn't be able to sign in using user created with email & password
     await req

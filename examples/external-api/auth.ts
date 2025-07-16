@@ -3,7 +3,7 @@ import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { openAPI } from "better-auth/plugins";
 import { MongoClient } from "mongodb";
 import { credentials } from "../../src/credentials/index.js";
-import { default as z } from "zod";
+import { default as z } from "zod/v3";
 
 // https://www.better-auth.com/docs/adapters/mongo
 // For MongoDB, we don't need to generate or migrate the schema.

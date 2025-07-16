@@ -5,7 +5,6 @@ import { credentials, credentialsClient } from "../../index.js";
 
 import { APIError, EndpointContext } from "better-call";
 import { betterAuth, User } from "better-auth";
-import z3 from "zod";
 import { bearer } from "better-auth/plugins";
 
 describe("Test using the plugin with custom Account linking attributes", () => {
@@ -30,7 +29,7 @@ describe("Test using the plugin with custom Account linking attributes", () => {
                             if(!account) { 
                                 // Account linking, first time sign in this provider on an existing user
                                 registerFn();
-                                if(!userData.image) {
+                                if(!user.image) {
                                     userData.image = "http://example.com/linked.png";
                                 }
                                 return userData;
