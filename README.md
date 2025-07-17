@@ -41,7 +41,7 @@ Hello world usage example (just to show how to use the plugin):
 import { betterAuth } from "better-auth";
 import { credentials } from "better-auth-credentials-plugin";
 
-// ...
+// Server side:
 export const auth = betterAuth({
     /** ... other configs ... */
     emailAndPassword: {
@@ -55,6 +55,17 @@ export const auth = betterAuth({
                 return {};
             },
         })
+    ],
+});
+
+// Client side:
+import { User } from "better-auth";
+import { createAuthClient } from "better-auth/client";
+import { credentialsClient, defaultCredentialsSchema } from "better-auth-credentials-plugin";
+
+export const authClient = createAuthClient({
+    plugins: [
+        credentialsClient<User, "/sign-in/credentials", typeof defaultCredentialsSchema>(),
     ],
 });
 ```
@@ -132,42 +143,74 @@ credentials({
 ### Login on external API
 Example using the plugin to authenticate users against an external API, when you want to use the plugin to authenticate users against an external system that uses credentials for authentication, like a custom API or service. For this demonstration, the API has predefined users and returns user data after successful authentication.
 
-[examples/external-api](examples/external-api)
+Server side:
+[examples/external-api/auth.ts](examples/external-api/auth.ts)
 ```javascript
-credentials({
-    autoSignUp: true,
-    inputSchema: z.object({
-        username: z.string().min(1),
-        password: z.string().min(1),
-    }),
-    // Credentials login callback, this is called when the user submits the form
-    async callback(ctx, parsed) {
-        // Simulate an external API call to authenticate the user
-        const { username, password } = parsed;
-        const response = await fetch(`http://localhost:${process.env.PORT || 3000}/example/login`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
+
+export const myCustomSchema = z.object({
+    username: z.string().min(1),
+    password: z.string().min(1),
+});
+
+export const auth = betterAuth({
+    plugins: [
+        credentials({
+            autoSignUp: true,
+            path: "/sign-in/external",
+            inputSchema: myCustomSchema,
+            // Credentials login callback, this is called when the user submits the form
+            async callback(ctx, parsed) {
+                // Simulate an external API call to authenticate the user
+                const { username, password } = parsed;
+                const response = await fetch(`http://localhost:${process.env.PORT || 3000}/example/login`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ username, password }),
+                });
+
+                if (!response.ok) {
+                    throw new Error("Error authenticating:"+ ` ${response.status} ${response.statusText}`);
+                }
+
+                const apiUser = await response.json();
+
+                return {
+                    // Must return email, because inputSchema doesn't have it
+                    email: apiUser.email,
+
+                    // Other user data to update
+                    name: apiUser.name,
+                    username: apiUser.username,
+                };
             },
-            body: JSON.stringify({ username, password }),
-        });
+        }),
+    ],
+});
+```
 
-        if (!response.ok) {
-            throw new Error("Error authenticating:"+ ` ${response.status} ${response.statusText}`);
-        }
+When you provide custom path and inputSchema, you must pass the type parameters to the `credentialsClient` on the client side, so it can infer the correct types for the user data and input schema.
 
-        const apiUser = await response.json();
+Client side:
+[examples/external-api/client.ts](examples/external-api/client.ts)
+```javascript
+export const authClient = createAuthClient({
+    // The base URL of your Better Auth API
+    baseURL: `http://localhost:${port}`,
+    plugins: [
+        // Initialize the client plugin with the correct generic types parameters:
+        // 0: User -> The type of the user returned by the API
+        // 1: "/sign-in/external" -> The path for the credentials sign-in endpoint
+        // 2: typeof myCustomSchema -> The input schema for the credentials sign-in
+        credentialsClient<User, "/sign-in/external", typeof myCustomSchema>(),
 
-        return {
-            // Must return email, because inputSchema doesn't have it
-            email: apiUser.email,
-
-            // Other user data to update
-            name: apiUser.name,
-            username: apiUser.username,
-        };
-    },
-    })
+        // https://www.better-auth.com/docs/concepts/typescript#inferring-additional-fields-on-client
+        // This will infer the additional fields defined in the auth schema
+        // and make them available on the client (e.g., `username`).
+        inferAdditionalFields<typeof auth>(),
+    ],
+});
 ```
 
 ### LDAP Authentication Example
