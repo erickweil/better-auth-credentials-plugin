@@ -1,6 +1,6 @@
 {
   "name": "better-auth-credentials-plugin",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Generic credentials authentication plugin for Better Auth (To auth with ldap, external API, etc...)",
   "author": "Erick L. Weil",
   "license": "MIT",
