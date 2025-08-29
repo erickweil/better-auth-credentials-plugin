@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { credentials } from "../../src/credentials/index.js";
-import z3 from "zod/v3";
+import * as z from "zod";
 import { Account, betterAuth, BetterAuthPlugin, User } from "better-auth";
 import { MongoClient } from "mongodb";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
@@ -79,9 +79,9 @@ describe("Test minimal config options calling the plugin", () => {
 describe("Test all config options calling the plugin", () => {
   const { req } = buildAppPlugin(credentials({
     autoSignUp: true,
-    inputSchema: z3.object({
-      credential: z3.string().min(1),
-      password: z3.string().min(1),
+    inputSchema: z.object({
+      credential: z.string().min(1),
+      password: z.string().min(1),
     }),
     linkAccountIfExisting: true,
     path: "/my-sign-in",

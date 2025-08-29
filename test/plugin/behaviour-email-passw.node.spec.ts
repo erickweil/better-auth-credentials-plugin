@@ -6,7 +6,7 @@ import { betterAuth, User } from "better-auth";
 import { APIError } from "better-call";
 import { bearer } from "better-auth/plugins";
 import { testCases } from "../test-helpers.js";
-import z from "zod/v3";
+import * as z from "zod";
 
 describe("Test comparison login with email & password vs credentials, should behave similar", () => {
 
@@ -25,18 +25,10 @@ describe("Test comparison login with email & password vs credentials, should beh
                 autoSignUp: true,
                 providerId: "behaviour",
                 inputSchema: z.object({
-                    email: z.string({
-                        description: "The email of the user",
-                    }).min(1).email(),
-                    name: z.string({
-                        description: "The name of the user",
-                    }).min(1).optional(),
-                    password: z.string({
-                        description: "The password of the user",
-                    }).min(1),
-                    rememberMe: z.boolean({
-                        description: "Remember the user session",
-                    }).optional(),
+                    email: z.email().min(1),
+                    name: z.string().min(1).optional(),
+                    password: z.string().min(1),
+                    rememberMe: z.boolean().optional(),
                 }),
                 callback(ctx, parsed) {
                     return {

@@ -3,13 +3,13 @@ import { beforeAll, describe, expect, test } from "vitest";
 import { defaultBetterAuthOptions } from "../plugin.js";
 import { credentials, credentialsClient } from "../../index.js";
 import { betterAuth, User } from "better-auth";
-import z3 from "zod/v3";
+import * as z from "zod";
 import { bearer } from "better-auth/plugins";
 
 describe("Test using the plugin in the client", () => {
-    const schema = z3.object({
-        _email: z3.string().email(),
-        _password: z3.string().min(1, "Password is required"),
+    const schema = z.object({
+        _email: z.email(),
+        _password: z.string().min(1, "Password is required"),
     });
 
     let _instance = getTestInstance(

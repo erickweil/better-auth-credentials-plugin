@@ -6,10 +6,14 @@ import { Account, BetterAuthPlugin, User } from "better-auth";
 import { createAuthEndpoint, sendVerificationEmailFn } from "better-auth/api";
 import { CREDENTIALS_ERROR_CODES as CREDENTIALS_ERROR_CODES } from "./error-codes.js";
 import { setSessionCookie } from "better-auth/cookies";
-import { default as z, ZodTypeAny } from "zod/v3";
 import { defaultCredentialsSchema, DefaultCredentialsType } from "./schema.js";
+import { inferZod34, Zod34Schema } from "../utils/zod.js";
 
-type GetBodyParsed<Z> = Z extends z.ZodTypeAny ? z.infer<Z> : DefaultCredentialsType;
+type GetBodyParsed<Z> = Z extends Zod34Schema ? inferZod34<Z> : {
+    email: string;
+    password: string;
+    rememberMe?: boolean | undefined;
+};
 type MaybePromise<T> = T | Promise<T>;
 
 export type CallbackResult<U extends User> = (Partial<U> & {
@@ -18,7 +22,7 @@ export type CallbackResult<U extends User> = (Partial<U> & {
 	onLinkAccount?: (user: U) => MaybePromise<Partial<Account>>;
 }) | null | undefined;
 
-export type CredentialOptions<U extends User = User, P extends string = "/sign-in/credentials", Z extends (ZodTypeAny|undefined) = undefined> = {	
+export type CredentialOptions<U extends User = User, P extends string = "/sign-in/credentials", Z extends (Zod34Schema|undefined) = undefined> = {	
 	/**
 	 * Function that receives the credential and password and returns a Promise with the partial user data to be updated.
 	 * 
@@ -40,7 +44,7 @@ export type CredentialOptions<U extends User = User, P extends string = "/sign-i
 	/**
 	 * Schema for the input data, if not provided it will use the default schema that mirrors default email and password with rememberMe option.
 	 * 
-	 * (Must be a zod/v3 schema)
+	 * (Until version 0.2.2 it had to be a zod/v3 schema, now it works with zod/v4 also)
 	 */
 	inputSchema?: Z;
 
@@ -126,7 +130,7 @@ export type CredentialOptions<U extends User = User, P extends string = "/sign-i
  *     };  
  * })
  */
-export const credentials = <U extends User = User, P extends string = "/sign-in/credentials", Z extends ZodTypeAny = typeof defaultCredentialsSchema>(options: CredentialOptions<U, P, Z>) => {
+export const credentials = <U extends User = User, P extends string = "/sign-in/credentials", Z extends (Zod34Schema|undefined) = undefined>(options: CredentialOptions<U, P, Z>) => {
 	const zodSchema = (options.inputSchema || defaultCredentialsSchema) as Z;
 
 	return {
@@ -173,6 +177,12 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 					// ================== 1. Validate the input data ===================
 					// TODO: double check if the body was *really* parsed against the zod schema
 					const parsed = ctx.body as GetBodyParsed<Z>;
+                    if(!parsed || typeof parsed !== "object") {
+                        ctx.context.logger.error("Invalid request body", { credentials });
+                        throw new APIError("UNPROCESSABLE_ENTITY", {
+                            message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR
+                        });
+                    }
 
 					// ================== 2. Calling Callback Function ===================
 					let callbackResult: CallbackResult<U>;

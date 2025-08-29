@@ -6,7 +6,7 @@ import { Request } from "express";
 import { MongoClient } from "mongodb";
 import { credentials } from "../../src/credentials/index.js";
 import { authenticate } from "ldap-authentication";
-import { default as z } from "zod/v3";
+import * as z from "zod";
 import { mkdir, writeFile } from "fs/promises";
 
 // https://www.better-auth.com/docs/adapters/mongo

@@ -1,6 +1,6 @@
 import { User } from "better-auth";
 import { createAuthClient } from "better-auth/client";
-import { z } from "zod/v3";
+import * as z from "zod";
 import { credentialsClient } from "../../src/credentials/client.js";
 import { inferAdditionalFields } from "better-auth/client/plugins";
 import { auth, myCustomSchema } from "./auth.js";
@@ -29,7 +29,7 @@ export const authClient = createAuthClient({
     ],
 });
 
-/**
+/*
 // Example call to the login function
 // Look how the client can use both the custom path and schema, as the types are inferred correctly
 const { data, error } = await authClient.signIn.external({

@@ -288,7 +288,7 @@ credentials({
 ## Building and running the example
 
 Requirements:
-- Node.js (v18 or later)
+- Node.js (v20 or later)
 - Docker
 
 1. Clone the repository:
