@@ -136,7 +136,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 	return {
 		id: "credentials",
 		endpoints: {
-			signInUsername: createAuthEndpoint(
+			signInCredentials: createAuthEndpoint(
 				// Endpoints are inferred from the server plugin by adding a $InferServerPlugin key to the client plugin.
 				// Without this 'as' key the inferred client plugin would not work properly.
 				(options.path || "/sign-in/credentials") as P,
