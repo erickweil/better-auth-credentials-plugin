@@ -22,6 +22,9 @@ Examples (All are built using express + MongoDB):
 Considerations:
 - You need to return a `email` field after the authentication, this is used to create/update the user in the database, and also to link the account with the session (email field should be unique).
 - It's not intended to use this to re-implement password login, but to be used when you need to integrate with an external system that uses credentials for authentication, like LDAP, or any other system that you can verify the credentials and get user data. If you try to mimic password login by hashing and storing the password, aditional database round-trips will be needed as this plugin will search the user again after you alread did (just use the email & password flow or username plugin don't do this).
+- If you want to use both this plugin and the email & password flow (or username), you must decide which behaviour to have:
+1. The default: Accounts created with this plugin will not be able to login with email & password (because no password is set), and accounts that have a password set will only be able to login with email & password.
+2. Specifying providerId: You can set a custom providerId for this plugin, mimicking a social login provider, so accounts created with this plugin will be separate from email & password accounts. Then if you want to allow users to login with both methods, you can set `linkAccountIfExisting: true`
 
 **Installation**
 https://www.npmjs.com/package/better-auth-credentials-plugin
