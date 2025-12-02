@@ -85,35 +85,36 @@ export type CredentialOptions<U extends User = User, P extends string = "/sign-i
 	 */
 	UserType?: U;
 
-  /**
-   * Configures which error messages from the callback function should be passed through to the client.
-   *
-   * By default, all errors thrown in the callback are caught and converted to generic "UNAUTHORIZED" errors
-   * with a standard "invalid credentials" message. This option allows you to preserve specific error
-   * statuses and messages for better error handling on the client side.
-   *
-   * @example
-   * // Pass through all errors with status "UNAUTHORIZED"
-   * passThroughErrorMessages: [{ status: "UNAUTHORIZED" }]
-   *
-   * @example
-   * // Pass through only specific error status and message combinations
-   * passThroughErrorMessages: [
-   *   { status: "LOCKED", message: "Access is denied due to invalid or missing credentials." },
-   *   { status: "FORBIDDEN" }
-   * ]
-   *
-   * @example
-   * // Pass through all errors with status "UNAUTHORIZED" and a specific "LOCKED" error
-   * passThroughErrorMessages: [
-   *   { status: "UNAUTHORIZED" },
-   *   { status: "LOCKED", message: "Account has been locked due to multiple failed attempts." }
-   * ]
-   */
-  passThroughErrorMessages?: {
-    status: keyof typeof APIError;
-    message?: string;
-  }[];
+    /**
+     * Configures which error messages from the callback function should be passed through to the client.
+     *
+     * By default, all errors thrown in the callback are caught and converted to generic "UNAUTHORIZED" errors
+     * with a standard "invalid credentials" message. This option allows you to preserve specific error
+     * statuses and messages for better error handling on the client side.
+     *
+     * @example
+     * // Pass through all errors with status "UNAUTHORIZED"
+     * passThroughErrorMessages: [{ status: "UNAUTHORIZED" }]
+     *
+     * @example
+     * // Pass through only specific error status and message combinations
+     * passThroughErrorMessages: [
+     *   { status: "LOCKED", message: "Access is denied due to invalid or missing credentials." },
+     *   { status: "FORBIDDEN" }
+     * ]
+     *
+     * @example
+     * // Pass through all errors with status "UNAUTHORIZED" and a specific "LOCKED" error
+     * passThroughErrorMessages: [
+     *   { status: "UNAUTHORIZED" },
+     *   { status: "LOCKED", message: "Account has been locked due to multiple failed attempts." }
+     * ]
+     */
+    passThroughErrorMessages?: {
+        status: keyof typeof APIError;
+        code?: string;
+        message?: string;
+    }[] | ((error: APIError) => Promise<undefined | APIError> | undefined | APIError);
 };
 
 /**
@@ -163,6 +164,29 @@ export type CredentialOptions<U extends User = User, P extends string = "/sign-i
 export const credentials = <U extends User = User, P extends string = "/sign-in/credentials", Z extends (Zod34Schema|undefined) = undefined>(options: CredentialOptions<U, P, Z>) => {
 	const zodSchema = (options.inputSchema || defaultCredentialsSchema) as Z;
 
+    let passThroughErrorCallback = options.passThroughErrorMessages && typeof options.passThroughErrorMessages === "function" ? options.passThroughErrorMessages : undefined;
+    // If no function was provided, but a array of options, create a function to handle it
+    if(!passThroughErrorCallback && options.passThroughErrorMessages) {
+        passThroughErrorCallback = (error) => {
+            if(!Array.isArray(options.passThroughErrorMessages)) {
+                return;
+            }
+
+            const matchedConfig = options.passThroughErrorMessages.find((config) => {
+                const statusMatches = config.status === error.status;
+                const messageMatches = !config.message || config.message === error.message;
+                const codeMatches = !config.code || (error.body?.code && config.code === error.body?.code);
+                return statusMatches && messageMatches && codeMatches;
+            });
+
+            if (matchedConfig) {
+                return new APIError(matchedConfig.status, {
+                    message: matchedConfig.message ?? error.message ?? undefined,
+                });
+            }
+        };
+    }
+
 	return {
 		id: "credentials",
 		endpoints: {
@@ -210,6 +234,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
                     if(!parsed || typeof parsed !== "object") {
                         ctx.context.logger.error("Invalid request body", { credentials });
                         throw new APIError("UNPROCESSABLE_ENTITY", {
+                            code: "UNEXPECTED_ERROR",
                             message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR
                         });
                     }
@@ -221,36 +246,24 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 
 						if (!callbackResult) {
 							ctx.context.logger.error("Authentication failed, callback didn't returned user data", { credentials });
-							throw new APIError("UNAUTHORIZED", {
-								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
+                            // will become UNAUTHORIZED, but the passThroughErrorCallback can handle this
+							throw new APIError("INTERNAL_SERVER_ERROR", {
+                                code: "NO_USER_DATA_PROVIDED",
+								message: CREDENTIALS_ERROR_CODES.NO_USER_DATA_PROVIDED,
 							});
 						}
 					} catch (error) {
 						ctx.context.logger.error("Authentication failed", { error, credentials });
 						// Check if error should be passed through to the client
-						if (
-							error instanceof APIError &&
-							options?.passThroughErrorMessages
-						  ) {
-							const errorStatus = error.status;
-							const errorMessage = error.message;
-							const matchedConfig = options.passThroughErrorMessages.find(
-							  (config) => {
-								const statusMatches = config.status === errorStatus;
-								const messageMatches =
-								  !config.message || config.message === errorMessage;
-								return statusMatches && messageMatches;
-							  }
-							);
-			  
-							if (matchedConfig) {
-							  throw new APIError(matchedConfig.status, {
-								message: matchedConfig.message ?? errorMessage ?? undefined,
-							  });
-							}
-						  }
+                        if(error instanceof APIError && passThroughErrorCallback) {
+                            const passThroughError = await passThroughErrorCallback(error);
+                            if(passThroughError) {
+                                throw passThroughError;
+                            }
+                        }
 					
 						throw new APIError("UNAUTHORIZED", {
+                            code: "INVALID_CREDENTIALS",
 							message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 						});
 					}
@@ -285,7 +298,17 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 					if(!options.autoSignUp && !user) {
 						// TODO: timing attack mitigation?
 						ctx.context.logger.error("User not found", { credentials });
+
+                        // Check if error should be passed through to the client
+                        if(passThroughErrorCallback) {
+                            const passThroughError = await passThroughErrorCallback(new APIError("NOT_FOUND", { code: "USER_NOT_FOUND", message: CREDENTIALS_ERROR_CODES.USER_NOT_FOUND }));
+                            if(passThroughError) {
+                                throw passThroughError;
+                            }
+                        }
+
 						throw new APIError("UNAUTHORIZED", {
+                            code: "INVALID_CREDENTIALS",
 							message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 						});
 					}
@@ -297,6 +320,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 					) {
 						await sendVerificationEmailFn(ctx, user);
 						throw new APIError("FORBIDDEN", {
+                            code: "EMAIL_NOT_VERIFIED",
 							message: CREDENTIALS_ERROR_CODES.EMAIL_NOT_VERIFIED,
 						});
 					}
@@ -321,6 +345,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 
 							if(!userData || !email) {
 								throw new APIError("UNPROCESSABLE_ENTITY", {
+                                    code: "EMAIL_REQUIRED",
 									message: CREDENTIALS_ERROR_CODES.EMAIL_REQUIRED,
 									details: "User data must include at least email",
 								});
@@ -340,11 +365,13 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 								throw e;
 							}
 							throw new APIError("UNAUTHORIZED", {
+                                code: "INVALID_CREDENTIALS",
 								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 							});
 						}
 						if (!user) {
 							throw new APIError("UNPROCESSABLE_ENTITY", {
+                                code: "UNEXPECTED_ERROR",
 								message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR,
 							});
 						}
@@ -412,14 +439,34 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 
 						if((!options.autoSignUp || !options.linkAccountIfExisting) && !account) {
 							ctx.context.logger.error("User exists but no account found for this provider", { credentials });
+
+                            // Check if error should be passed through to the client
+                            if(passThroughErrorCallback) {
+                                const passThroughError = await passThroughErrorCallback(new APIError("NOT_FOUND", { code: "ACCOUNT_NOT_FOUND", message: CREDENTIALS_ERROR_CODES.ACCOUNT_NOT_FOUND }));
+                                if(passThroughError) {
+                                    throw passThroughError;
+                                }
+                            }
+
 							throw new APIError("UNAUTHORIZED", {
+                                code: "INVALID_CREDENTIALS",
 								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 							});
 						}
 
 						if(account && account.providerId === "credential" && account.password) {
 							ctx.context.logger.error("Shouldn't login with credentials, this user has a account with password", { credentials });
+
+                            // Check if error should be passed through to the client
+                            if(passThroughErrorCallback) {
+                                const passThroughError = await passThroughErrorCallback(new APIError("UNAUTHORIZED", { code: "ACCOUNT_HAS_PASSWORD", message: CREDENTIALS_ERROR_CODES.ACCOUNT_HAS_PASSWORD }));
+                                if(passThroughError) {
+                                    throw passThroughError;
+                                }
+                            }
+
 							throw new APIError("UNAUTHORIZED", {
+                                code: "INVALID_CREDENTIALS",
 								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 							});
 						}
@@ -439,6 +486,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 								throw e;
 							}
 							throw new APIError("UNAUTHORIZED", {
+                                code: "INVALID_CREDENTIALS",
 								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
 							});
 						}
@@ -484,6 +532,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 					if (!session) {
 						ctx.context.logger.error("Failed to create session");
 						throw new APIError("BAD_REQUEST", {
+                            code: "UNEXPECTED_ERROR",
 							message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR
 						});
 					}
