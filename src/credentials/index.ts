@@ -84,6 +84,36 @@ export type CredentialOptions<U extends User = User, P extends string = "/sign-i
 	 * @example {} as User & {lastLogin: Date}
 	 */
 	UserType?: U;
+
+  /**
+   * Configures which error messages from the callback function should be passed through to the client.
+   *
+   * By default, all errors thrown in the callback are caught and converted to generic "UNAUTHORIZED" errors
+   * with a standard "invalid credentials" message. This option allows you to preserve specific error
+   * statuses and messages for better error handling on the client side.
+   *
+   * @example
+   * // Pass through all errors with status "UNAUTHORIZED"
+   * passThroughErrorMessages: [{ status: "UNAUTHORIZED" }]
+   *
+   * @example
+   * // Pass through only specific error status and message combinations
+   * passThroughErrorMessages: [
+   *   { status: "LOCKED", message: "Access is denied due to invalid or missing credentials." },
+   *   { status: "FORBIDDEN" }
+   * ]
+   *
+   * @example
+   * // Pass through all errors with status "UNAUTHORIZED" and a specific "LOCKED" error
+   * passThroughErrorMessages: [
+   *   { status: "UNAUTHORIZED" },
+   *   { status: "LOCKED", message: "Account has been locked due to multiple failed attempts." }
+   * ]
+   */
+  passThroughErrorMessages?: {
+    status: keyof typeof APIError;
+    message?: string;
+  }[];
 };
 
 /**
@@ -94,7 +124,7 @@ export type CredentialOptions<U extends User = User, P extends string = "/sign-i
  * Summary of the stages of this authentication flow:
  * 1. Validate the input data against `inputSchema`
  * 2. Call the `callback` function
- *   - If the callback throws an error, or doesn't return a object with user data, a generic 401 Unauthorized error is thrown.
+ *   - If the callback throws an error, or doesn't return a object with user data, a generic 401 Unauthorized error is thrown or the error is passed through to the client if `passThroughErrorMessages` is configured.
  * 3. Find the user by email (given by callback or parsed input), if exists proceed to [SIGN IN], if not [SIGN UP] (only when `autoSignUp` is true).
  * 
  * **[SIGN IN]**
@@ -197,6 +227,28 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 						}
 					} catch (error) {
 						ctx.context.logger.error("Authentication failed", { error, credentials });
+						// Check if error should be passed through to the client
+						if (
+							error instanceof APIError &&
+							options?.passThroughErrorMessages
+						  ) {
+							const errorStatus = error.status;
+							const errorMessage = error.message;
+							const matchedConfig = options.passThroughErrorMessages.find(
+							  (config) => {
+								const statusMatches = config.status === errorStatus;
+								const messageMatches =
+								  !config.message || config.message === errorMessage;
+								return statusMatches && messageMatches;
+							  }
+							);
+			  
+							if (matchedConfig) {
+							  throw new APIError(matchedConfig.status, {
+								message: matchedConfig.message ?? errorMessage ?? undefined,
+							  });
+							}
+						  }
 					
 						throw new APIError("UNAUTHORIZED", {
 							message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
