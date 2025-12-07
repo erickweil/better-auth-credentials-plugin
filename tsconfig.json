@@ -107,6 +107,8 @@
     // "skipDefaultLibCheck": true,                      /* Skip type checking .d.ts files that are included with TypeScript. */
     "skipLibCheck": true                                 /* Skip type checking all .d.ts files. */
   },
+  "include": ["index.ts", "client.ts", "src/**/*", "examples/**/*", "test/**/*"],
+  "exclude": ["node_modules", "dist", "faulty-project"],
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "explicit",
