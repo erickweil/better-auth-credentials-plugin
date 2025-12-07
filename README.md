@@ -6,8 +6,6 @@ Generic credentials authentication plugin for Better Auth
 
 The plugin itself can be used to authenticate to anything, as are you that handle the logic that verify user input credentials in the callback, and just need to return user data that will be used to create/update the user in the database.
 
-(Early version, experimental, the behaviour WILL CHANGE)
-
 ## Features
 - Full control over the authentication process
 - Auto sign-up (optional) and management of Account linking and session creation
@@ -64,7 +62,7 @@ export const auth = betterAuth({
 // Client side:
 import { User } from "better-auth";
 import { createAuthClient } from "better-auth/client";
-import { credentialsClient, defaultCredentialsSchema } from "better-auth-credentials-plugin";
+import { credentialsClient, defaultCredentialsSchema } from "better-auth-credentials-plugin/client";
 
 export const authClient = createAuthClient({
     plugins: [
@@ -72,6 +70,8 @@ export const authClient = createAuthClient({
     ],
 });
 ```
+
+> Note that when importing in client side, in some bundlers (Webpack, Turbopack, Vite) you must use the dedicated client entry point via subpath export (`better-auth-credentials-plugin/client`).
 
 Doing as above would allow any user sign in with any password, and create new users automatically if they don't exist.
 
@@ -198,6 +198,9 @@ When you provide custom path and inputSchema, you must pass the type parameters 
 Client side:
 [examples/external-api/client.ts](examples/external-api/client.ts)
 ```javascript
+// Dedicated client entry point via subpath export, prevents server-side dependencies from being included in the client bundle
+import { credentialsClient, defaultCredentialsSchema } from "better-auth-credentials-plugin/client";
+
 export const authClient = createAuthClient({
     // The base URL of your Better Auth API
     baseURL: `http://localhost:${port}`,
@@ -342,7 +345,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contributing
 
-Contributions are welcome! But please note that this is an early version and not yet ready for anything. If you have any ideas or improvements, feel free to open an issue or submit a pull request.
+Contributions are welcome! If you have any ideas or improvements, feel free to open an issue or submit a pull request. When you do that, you are free to include relevant tests and update the documentation accordingly.
 
 ## Acknowledgements
 

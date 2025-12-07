@@ -108,7 +108,7 @@
     "skipLibCheck": true                                 /* Skip type checking all .d.ts files. */
   },
   "include": ["index.ts", "client.ts", "src/**/*", "examples/**/*", "test/**/*"],
-  "exclude": ["node_modules", "dist", "faulty-project"],
+  "exclude": ["node_modules", "dist"],
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "explicit",

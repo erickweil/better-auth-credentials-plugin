@@ -1,6 +1,5 @@
 import { User } from "better-auth";
 import { createAuthClient } from "better-auth/client";
-import * as z from "zod";
 import { credentialsClient } from "../../src/credentials/client.js";
 import { inferAdditionalFields } from "better-auth/client/plugins";
 import { auth, myCustomSchema } from "./auth.js";
