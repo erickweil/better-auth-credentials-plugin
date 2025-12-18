@@ -281,7 +281,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 								name: name!, // Yes, the type is wrong, NAME IS OPTIONAL
 								emailVerified: false,
 								...restUserData,
-							}, ctx);
+							}) as U;
 						} catch (e) {
 							ctx.context.logger.error("Failed to create user", e);
 							if (e instanceof APIError) {
@@ -308,8 +308,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 								providerId: options.providerId || "credential",
 								accountId: user.id,
 								...accountData
-							},
-							ctx,
+							}
 						);
 
 						// If the user is created, we can send the verification email if required
@@ -404,8 +403,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 									providerId: options.providerId || "credential",
 									accountId: user.id,
 									...accountData
-								},
-								ctx,
+								}
 							);
 						}
 						
@@ -413,7 +411,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 						if(userData) {
 							delete userData.email;
 							if(Object.keys(userData).length > 0) {
-								user = (await ctx.context.internalAdapter.updateUser(user.id, userData, ctx)) as U;
+								user = (await ctx.context.internalAdapter.updateUser(user.id, userData)) as U;
 							}
 						}
 					}
@@ -426,7 +424,6 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 					const rememberMe = "rememberMe" in parsed ? parsed.rememberMe : false;
 					const session = await ctx.context.internalAdapter.createSession(
 						user.id,
-						ctx,
 						rememberMe === false,
 					);
 					if (!session) {

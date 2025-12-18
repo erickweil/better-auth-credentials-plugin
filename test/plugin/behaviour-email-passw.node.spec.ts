@@ -80,9 +80,10 @@ describe("Test comparison login with email & password vs credentials, should beh
           body: {name: "test1", email: "test1", password: "passw"}, 
           match: {}
         },
-        { // Missing name, works???
+        { // Missing name, on newer better-auth versions name is required
+          // But on ours credentials plugin we will allow users without name 
           signUp: true,
-          statusEmail: 200, 
+          statusEmail: 400,
           statusCred: 200,
           body: {email: "test-no-name", password: "password1"}, 
           match: {
