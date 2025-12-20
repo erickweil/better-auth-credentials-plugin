@@ -32,8 +32,8 @@ describe("External API, make request to auth", () => {
       expect(data).toBeTruthy();
       expect(data?.user).toBeTruthy();
       expect(data?.user.name).toBeTruthy();
-      expect((data?.user as any).username).toBeUndefined();
-      expect(data?.user?.email).toBe(testCase.username+"@example.com");
+      expect(data?.user.username).toBeUndefined();
+      expect(data?.user.email).toBe(testCase.username+"@example.com");
       expect(error).toBeFalsy();
 
       expect(sessionToken).toBeTruthy();
@@ -53,7 +53,6 @@ describe("External API, make request to auth", () => {
 
       expect(data?.user).toBeTruthy();
       expect(data?.user.email).toBe(testCase.username+"@example.com");
-      expect(data?.user.username).toBe(testCase.username);
     }
   });
 

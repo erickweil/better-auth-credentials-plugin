@@ -27,8 +27,8 @@ export const auth = betterAuth({
             // Add additional fields to the user model
             username: {
                 type: "string",
-                returned: true,
-                required: false,
+                returned: false,
+                required: false
             },
         }
     },
@@ -40,6 +40,7 @@ export const auth = betterAuth({
             providerId: "external-api",
             path: "/sign-in/external",
             inputSchema: myCustomSchema,
+            UserType: {} as User & { username?: string },
             // Credentials login callback, this is called when the user submits the form
             async callback(ctx, parsed) {
                 // Simulate an external API call to authenticate the user

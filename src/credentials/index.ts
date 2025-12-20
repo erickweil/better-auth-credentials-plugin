@@ -2,12 +2,13 @@
 // e https://github.com/better-auth/better-auth/blob/main/packages/better-auth/src/api/routes/sign-in.ts
 
 import { APIError, EndpointContext } from "better-call";
-import { Account, BetterAuthPlugin, User } from "better-auth";
+import { Account, BetterAuthOptions, BetterAuthPlugin, InferUser, User } from "better-auth";
 import { createAuthEndpoint, sendVerificationEmailFn } from "better-auth/api";
 import { CREDENTIALS_ERROR_CODES as CREDENTIALS_ERROR_CODES } from "./error-codes.js";
 import { setSessionCookie } from "better-auth/cookies";
-import { defaultCredentialsSchema, DefaultCredentialsType } from "./schema.js";
+import { defaultCredentialsSchema } from "./schema.js";
 import { inferZod34, Zod34Schema } from "../utils/zod.js";
+import { parseUserOutput } from "better-auth/db";
 
 type GetBodyParsed<Z> = Z extends Zod34Schema ? inferZod34<Z> : {
     email: string;
@@ -130,11 +131,16 @@ export type CredentialOptions<U extends User = User, P extends string = "/sign-i
  *     };  
  * })
  */
-export const credentials = <U extends User = User, P extends string = "/sign-in/credentials", Z extends (Zod34Schema|undefined) = undefined>(options: CredentialOptions<U, P, Z>) => {
+export const credentials = <U extends User = User, P extends string = "/sign-in/credentials", Z extends (Zod34Schema|undefined) = undefined, O extends (BetterAuthOptions|undefined) = undefined>(
+	options: CredentialOptions<U, P, Z>, 
+	betterAuthOptions?: O | undefined
+) => {
+	type ReturnUserType = O extends BetterAuthOptions ? InferUser<O> : U; 
 	const zodSchema = (options.inputSchema || defaultCredentialsSchema) as Z;
 
 	return {
 		id: "credentials",
+		options: options,
 		endpoints: {
 			signInCredentials: createAuthEndpoint(
 				// Endpoints are inferred from the server plugin by adding a $InferServerPlugin key to the client plugin.
@@ -173,7 +179,10 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 						},
 					},
 				},
-				async (ctx) => {
+				async (ctx): Promise<{
+					token: string | null;
+					user: ReturnUserType;
+				}> => {
 					// ================== 1. Validate the input data ===================
 					// TODO: double check if the body was *really* parsed against the zod schema
 					const parsed = ctx.body as GetBodyParsed<Z>;
@@ -323,15 +332,10 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 							if(ctx.context.options.emailAndPassword?.requireEmailVerification) {
 								return ctx.json({
 									token: null,
-									user: {
-										id: user.id,
-										email: user.email,
-										name: user.name,
-										image: user.image,
-										emailVerified: user.emailVerified,
-										createdAt: user.createdAt,
-										updatedAt: user.updatedAt,
-									},
+									user: parseUserOutput(
+										ctx.context.options,
+										user,
+									) as ReturnUserType,
 								});
 							}
 						}
@@ -439,18 +443,12 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 					);
 
 					// =============== Response with user data ==============
-					// TODO: how to return all fields with { returned: true } configured?
 					return ctx.json({
 						token: session.token,
-						user: {
-							id: user.id,
-							email: user.email,
-							name: user.name,
-							image: user.image,
-							emailVerified: user.emailVerified,
-							createdAt: user.createdAt,
-							updatedAt: user.updatedAt,
-						},
+						user: parseUserOutput(
+							ctx.context.options,
+							user,
+						) as ReturnUserType,
 					});
 				},
 			),
