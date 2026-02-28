@@ -92,9 +92,9 @@ describe.skipIf(!isLdapConfigured)("LDAP, should authenticate users on LDAP serv
         expect(response?.body).toBeTruthy();
         expect(response?.body.length).toBeGreaterThanOrEqual(1);
 
-        const accountLdap = response?.body.find((account: any) => account.provider === "ldap");
+        const accountLdap = response?.body.find((account: any) => account.providerId === "ldap");
         expect(accountLdap).toBeTruthy();
-        expect(accountLdap.provider).toBe("ldap");
+        expect(accountLdap.providerId).toBe("ldap");
         expect(accountLdap.accountId).toBeTruthy();
       }
   });
