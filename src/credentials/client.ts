@@ -1,13 +1,13 @@
 // Adaptado de: https://github.com/better-auth/better-auth/blob/main/packages/better-auth/src/plugins/username/client.ts
-import { BetterAuthClientPlugin, User } from "better-auth";
+import { BetterAuthClientPlugin, BetterAuthOptions, User } from "better-auth";
 
 import type { credentials } from "./index.js";
 import { defaultCredentialsSchema } from "./schema.js";
 import { Zod34Schema } from "../utils/zod.js";
 
-export const credentialsClient = <U extends User = User, P extends string = "/sign-in/credentials", Z extends Zod34Schema = typeof defaultCredentialsSchema>() => {
+export const credentialsClient = <U extends User = User, P extends string = "/sign-in/credentials", Z extends Zod34Schema = typeof defaultCredentialsSchema, O extends (BetterAuthOptions|undefined) = undefined>() => {
 	return {
 		id: "credentials",
-		$InferServerPlugin: {} as ReturnType<typeof credentials<U, P, Z>>,
+		$InferServerPlugin: {} as ReturnType<typeof credentials<U, P, Z, O>>,
 	} satisfies BetterAuthClientPlugin;
 };

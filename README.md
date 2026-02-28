@@ -18,6 +18,7 @@ Examples (All are built using express + MongoDB):
 - examples/ldap-auth - Uses this plugin to perform LDAP authentication, showing how easy is to use it
 
 Considerations:
+- **Stateless (without a database) not supported yet.**
 - You need to return a `email` field after the authentication, this is used to create/update the user in the database, and also to link the account with the session (email field should be unique).
 - It's not intended to use this to re-implement password login, but to be used when you need to integrate with an external system that uses credentials for authentication, like LDAP, or any other system that you can verify the credentials and get user data. If you try to mimic password login by hashing and storing the password, aditional database round-trips will be needed as this plugin will search the user again after you alread did (just use the email & password flow or username plugin don't do this).
 - If you want to use both this plugin and the email & password flow (or username), you must decide which behaviour to have:
