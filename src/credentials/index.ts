@@ -1,16 +1,18 @@
 // Adaptado de https://github.com/better-auth/better-auth/blob/main/packages/better-auth/src/plugins/username/index.ts
 // e https://github.com/better-auth/better-auth/blob/main/packages/better-auth/src/api/routes/sign-in.ts
 
-import { APIError, EndpointContext } from "better-call";
-import { Account, BetterAuthOptions, BetterAuthPlugin, InferUser, User } from "better-auth";
+import { Account, BetterAuthOptions, BetterAuthPlugin, User } from "better-auth";
 import { createAuthEndpoint, sendVerificationEmailFn } from "better-auth/api";
 import { CREDENTIALS_ERROR_CODES as CREDENTIALS_ERROR_CODES } from "./error-codes.js";
 import { setSessionCookie } from "better-auth/cookies";
-import { defaultCredentialsSchema } from "./schema.js";
-import { inferZod34, Zod34Schema } from "../utils/zod.js";
-import { parseUserOutput } from "better-auth/db";
+import { APIError } from "@better-auth/core/error";
 
-type GetBodyParsed<Z> = Z extends Zod34Schema ? inferZod34<Z> : {
+import { defaultCredentialsSchema } from "./schema.js";
+import { parseUserOutput } from "better-auth/db";
+import type { StandardSchemaV1 } from "@standard-schema/spec";
+import { AuthEndpointContext } from "@better-auth/core/context";
+
+type GetBodyParsed<Z> = Z extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<Z> : {
     email: string;
     password: string;
     rememberMe?: boolean | undefined;
@@ -23,7 +25,7 @@ export type CallbackResult<U extends User> = (Partial<U> & {
 	onLinkAccount?: (user: U) => MaybePromise<Partial<Account>>;
 }) | null | undefined;
 
-export type CredentialOptions<U extends User = User, P extends string = "/sign-in/credentials", Z extends (Zod34Schema|undefined) = undefined> = {	
+export type CredentialOptions<U extends User = User, P extends string = "/sign-in/credentials", Z extends (StandardSchemaV1|undefined) = undefined> = {	
 	/**
 	 * Function that receives the credential and password and returns a Promise with the partial user data to be updated.
 	 * 
@@ -37,15 +39,15 @@ export type CredentialOptions<U extends User = User, P extends string = "/sign-i
 	 * The `onLinkAccount` callback is called whenever a Account is created or if the user already exists and an account is linked to the user, use it to store custom data on the Account.
 	 */
 	callback: (
-		ctx: EndpointContext<string, any>, 
+		ctx: AuthEndpointContext, 
 		parsed: GetBodyParsed<Z> 
 	) => 
 		MaybePromise<CallbackResult<U>>;
 
 	/**
 	 * Schema for the input data, if not provided it will use the default schema that mirrors default email and password with rememberMe option.
-	 * 
-	 * (Until version 0.2.2 it had to be a zod/v3 schema, now it works with zod/v4 also)
+	 *
+	 * Supports any Standard Schema compatible validator (e.g. Zod v3/v4, Valibot, ArkType, etc).
 	 */
 	inputSchema?: Z;
 
@@ -131,12 +133,13 @@ export type CredentialOptions<U extends User = User, P extends string = "/sign-i
  *     };  
  * })
  */
-export const credentials = <U extends User = User, P extends string = "/sign-in/credentials", Z extends (Zod34Schema|undefined) = undefined, O extends (BetterAuthOptions|undefined) = undefined>(
+export const credentials = <U extends User = User, P extends string = "/sign-in/credentials", Z extends (StandardSchemaV1|undefined) = undefined, O extends (BetterAuthOptions|undefined) = undefined>(
 	options: CredentialOptions<U, P, Z>, 
-	betterAuthOptions?: O | undefined
+	betterAuthOptions?: O
 ) => {
-	type ReturnUserType = O extends BetterAuthOptions ? InferUser<O> : U; 
-	const zodSchema = (options.inputSchema || defaultCredentialsSchema) as Z;
+	type ReturnUserType = O extends BetterAuthOptions ? User<O["user"], O["plugins"]> : U;
+	type ResolvedInputSchema = Z extends undefined ? typeof defaultCredentialsSchema : Z;
+	const inputSchema = (options.inputSchema || defaultCredentialsSchema) as ResolvedInputSchema;
 
 	return {
 		id: "credentials",
@@ -148,8 +151,17 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 				(options.path || "/sign-in/credentials") as P,
 				{
 					method: "POST",
-					body: zodSchema,
+					body: inputSchema,
 					metadata: {
+						$Infer: {
+							body: {} as GetBodyParsed<Z>,
+							returned: {} as {
+								redirect: boolean;
+								token: string;
+								url?: string | undefined;
+								user: ReturnUserType;
+							},
+						},
 						openapi: {
 							summary: "Sign in with Credentials",
 							description: "Sign in with credentials using the user's email and password or other configured fields.",
@@ -184,13 +196,11 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 					user: ReturnUserType;
 				}> => {
 					// ================== 1. Validate the input data ===================
-					// TODO: double check if the body was *really* parsed against the zod schema
+					// TODO: double check if the body was *really* parsed against the input schema
 					const parsed = ctx.body as GetBodyParsed<Z>;
                     if(!parsed || typeof parsed !== "object") {
                         ctx.context.logger.error("Invalid request body", { credentials });
-                        throw new APIError("UNPROCESSABLE_ENTITY", {
-                            message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR
-                        });
+                        throw APIError.from("UNPROCESSABLE_ENTITY", CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR);
                     }
 
 					// ================== 2. Calling Callback Function ===================
@@ -200,16 +210,12 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 
 						if (!callbackResult) {
 							ctx.context.logger.error("Authentication failed, callback didn't returned user data", { credentials });
-							throw new APIError("UNAUTHORIZED", {
-								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
-							});
+							throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 						}
 					} catch (error) {
 						ctx.context.logger.error("Authentication failed", { error, credentials });
 					
-						throw new APIError("UNAUTHORIZED", {
-							message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
-						});
+						throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 					}
 					let {onSignIn, onSignUp, onLinkAccount, email, ..._userData} = callbackResult;
 					let userData: Partial<U> = _userData as Partial<U>;
@@ -219,10 +225,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 						email = "email" in parsed && typeof parsed.email === "string" ? parsed.email : undefined;
 						if(!email) {
 							ctx.context.logger.error("Email is required for credentials authentication", { credentials });
-							throw new APIError("UNPROCESSABLE_ENTITY", {
-								message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR,
-								details: "Email is required for credentials authentication",
-							});
+							throw APIError.from("UNPROCESSABLE_ENTITY", CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR);
 						}
 					}
 					email = email.toLowerCase();
@@ -242,9 +245,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 					if(!options.autoSignUp && !user) {
 						// TODO: timing attack mitigation?
 						ctx.context.logger.error("User not found", { credentials });
-						throw new APIError("UNAUTHORIZED", {
-							message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
-						});
+						throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS );
 					}
 
 					// If email verification is required, return early
@@ -253,9 +254,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 						ctx.context.options.emailAndPassword?.requireEmailVerification
 					) {
 						await sendVerificationEmailFn(ctx, user);
-						throw new APIError("FORBIDDEN", {
-							message: CREDENTIALS_ERROR_CODES.EMAIL_NOT_VERIFIED,
-						});
+						throw APIError.from("FORBIDDEN", CREDENTIALS_ERROR_CODES.EMAIL_NOT_VERIFIED);
 					}
 
 					let account: Account | null = null;
@@ -277,10 +276,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 							}
 
 							if(!userData || !email) {
-								throw new APIError("UNPROCESSABLE_ENTITY", {
-									message: CREDENTIALS_ERROR_CODES.EMAIL_REQUIRED,
-									details: "User data must include at least email",
-								});
+								throw APIError.from("UNPROCESSABLE_ENTITY", CREDENTIALS_ERROR_CODES.EMAIL_REQUIRED);
 							}
 
 							delete userData.email;
@@ -296,14 +292,10 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 							if (e instanceof APIError) {
 								throw e;
 							}
-							throw new APIError("UNAUTHORIZED", {
-								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
-							});
+							throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 						}
 						if (!user) {
-							throw new APIError("UNPROCESSABLE_ENTITY", {
-								message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR,
-							});
+							throw APIError.from("UNPROCESSABLE_ENTITY", CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR);
 						}
 
 						// ================== 5. create new Account ====================
@@ -363,16 +355,12 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 
 						if((!options.autoSignUp || !options.linkAccountIfExisting) && !account) {
 							ctx.context.logger.error("User exists but no account found for this provider", { credentials });
-							throw new APIError("UNAUTHORIZED", {
-								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
-							});
+							throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 						}
 
 						if(account && account.providerId === "credential" && account.password) {
 							ctx.context.logger.error("Shouldn't login with credentials, this user has a account with password", { credentials });
-							throw new APIError("UNAUTHORIZED", {
-								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
-							});
+							throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 						}
 						
 						// =============== 5. Update user data ==============
@@ -389,9 +377,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 							if (e instanceof APIError) {
 								throw e;
 							}
-							throw new APIError("UNAUTHORIZED", {
-								message: CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS,
-							});
+							throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 						}
 
 						// Doing the linking after onSignIn callback, so if it fails no account is created
@@ -432,9 +418,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 					);
 					if (!session) {
 						ctx.context.logger.error("Failed to create session");
-						throw new APIError("BAD_REQUEST", {
-							message: CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR
-						});
+						throw APIError.from("BAD_REQUEST", CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR);
 					}
 					await setSessionCookie(
 						ctx,

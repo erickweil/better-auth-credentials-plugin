@@ -10,7 +10,7 @@ The plugin itself can be used to authenticate to anything, as are you that handl
 - Full control over the authentication process
 - Auto sign-up (optional) and management of Account linking and session creation
 - Similar in behaviour to the default email & password flow, but YOU handle the verification of the credentials and allow automatically sign-up
-- Route customization, you can choose the route path and the body parameters (using zod schema that doubles as validation and OpenAPI documentation)
+- Route customization, you can choose the route path and the body parameters (using any Standard Schema compatible validator, e.g. Zod/Valibot/ArkType, that doubles as validation and OpenAPI documentation)
 - Supports custom callbacks for sign-in and sign-up events
 
 Examples (All are built using express + MongoDB):
@@ -81,7 +81,7 @@ The full set of options for the plugin is as follows:
 | Attribute                   | Description                                                                      |
 |-----------------------------|----------------------------------------------------------------------------------|
 | `callback` *               | This callback is the only required option, here you handle the login logic and return the user data to create a new user or update existing ones |
-| `inputSchema`                | Zod schema that defined the body contents of the sign-in route, you can put any schema you like, but if it doesn't have an `email` field, you then need to return the email to use in the callback. Defaults to the same as User & Password flow `{email: string, password: string, rememberMe?: boolean}` |
+| `inputSchema`                | Standard Schema compatible validator schema that defines the body contents of the sign-in route (e.g. Zod/Valibot/ArkType). If it doesn't have an `email` field, you then need to return the email in the callback. Defaults to the same as User & Password flow `{email: string, password: string, rememberMe?: boolean}` |
 | `autoSignUp`                | If true will create new Users and Accounts if the don't exist |
 | `linkAccountIfExisting`                | If true, will link the Account on existing users created with another login method (Only have effect with autoSignUp true) |
 | `providerId`                | Id of the Account provider defaults to `credential` |
@@ -229,7 +229,7 @@ Example using the plugin to authenticate users against an LDAP server, showcasin
 ```javascript
 credentials({
     // User type to use, this will be used to type the user in the callback
-    // This way the zod schema will infer correctly, otherwise you would have to pass both generic types explicitly
+    // This way the input schema type will infer correctly, otherwise you would have to pass both generic types explicitly
     UserType: {} as User & {
         ldap_dn: string,
         description: string,
