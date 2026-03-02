@@ -1,5 +1,5 @@
 // Test to see if this plugin is compatible with username plugin from better-auth
-import { getTestInstance } from "@better-auth-kit/tests";
+import { getTestInstance } from "better-auth/test";
 import { beforeAll, describe, expect, test } from "vitest";
 import { defaultBetterAuthOptions } from "../plugin.js";
 import { credentials, credentialsClient } from "../../index.js";
@@ -10,7 +10,7 @@ import { usernameClient } from "better-auth/client/plugins";
 describe("Test check to see if username plugin works with credentials", () => {
 
     const _instance = getTestInstance(
-        betterAuth({
+        {
         ...defaultBetterAuthOptions,
         emailAndPassword: {
             enabled: true,
@@ -35,7 +35,7 @@ describe("Test check to see if username plugin works with credentials", () => {
             }),
             username()
         ]
-    }), { clientOptions: { plugins: [credentialsClient(), usernameClient()] } }
+    }, { clientOptions: { plugins: [credentialsClient(), usernameClient()] } }
     );
 
     let client: (Awaited<typeof _instance>)["client"];

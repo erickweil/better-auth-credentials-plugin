@@ -2,12 +2,19 @@ import { getTestInstance } from "better-auth/test";
 import { beforeAll, describe, expect, test } from "vitest";
 import { defaultBetterAuthOptions } from "../plugin.js";
 import { credentials, credentialsClient } from "../../index.js";
-import { betterAuth, User } from "better-auth";
 import { bearer } from "better-auth/plugins";
 import { testCases } from "../test-helpers.js";
-import * as z3 from "zod/v3";
+import { type } from "arktype";
+import { User } from "better-auth";
 
-describe("Should still work with zod v3 also", () => {
+describe("Should work with arktype also (Standard Schema)", () => {
+
+    const userArkType = type({
+        email: "string.email",
+        senha: "string >= 8",
+        "name?": "string > 0 | undefined",
+        "rememberMe?": "boolean | undefined"
+    });
 
     const _instance = getTestInstance(
         {
@@ -19,22 +26,20 @@ describe("Should still work with zod v3 also", () => {
             bearer(),
             credentials({
                 autoSignUp: true,
-                providerId: "zodv3",
-                inputSchema: z3.object({
-                    email: z3.string().email().min(1),
-                    name: z3.string().min(1).optional(),
-                    senha: z3.string().min(8),
-                    rememberMe: z3.boolean().optional(),
-                }),
+                providerId: "arktype",
+                inputSchema: userArkType,
                 callback(ctx, parsed) {
+                    if(parsed.senha !== "password1") {
+                        throw new Error("Invalid password");
+                    }
                     return {
                         email: parsed.email,
                         name: parsed.name
                     };
                 }
-            }),
+            })
         ]
-    }, { clientOptions: { plugins: [credentialsClient()] } }
+    }, { clientOptions: { plugins: [credentialsClient<User, "/sign-in/credentials", typeof userArkType>()] } }
     );
 
     let client: (Awaited<typeof _instance>)["client"];
@@ -50,31 +55,31 @@ describe("Should still work with zod v3 also", () => {
           match: {}
         },
         { // Fail because missing field
-          body: {name: "test1", email: "zodtest1"}, 
+          body: {name: "test1", email: "arktest1"}, 
           match: {}
         },
         { // Fail because password too short
-          body: {name: "test1", email: "zodtest1", senha: "passw"}, 
+          body: {name: "test1", email: "arktest1", senha: "passw"}, 
           match: {}
         },
         { // Missing name, works???
-          body: {email: "zodtest-no-name", senha: "password1"}, 
+          body: {email: "arktest-no-name", senha: "password1"}, 
           match: {
             name: undefined,
-            email: "zodtest-no-name",
+            email: "arktest-no-name",
             emailVerified: false
           }
         },
         {
-          body: {name: "test1", email: "zodtest1", senha: "password1"}, 
+          body: {name: "test1", email: "arktest1", senha: "password1"}, 
           match: {
             name: "test1",
-            email: "zodtest1",
+            email: "arktest1",
             emailVerified: false
           }
         }        
       ], async ({body, match}) => {
-        const credResult = await client.signIn.credentials({...body, email: body.email+"@zod.example.com"} as any);
+        const credResult = await client.signIn.credentials({...body, email: body.email+"@ark.example.com"} as any);
 
         console.log("Credentials result:", credResult);
 

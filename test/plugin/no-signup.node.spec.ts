@@ -1,4 +1,4 @@
-import { getTestInstance } from "@better-auth-kit/tests";
+import { getTestInstance } from "better-auth/test";
 import { beforeAll, describe, expect, test } from "vitest";
 import { defaultBetterAuthOptions } from "../plugin.js";
 import { credentials, credentialsClient } from "../../index.js";
@@ -9,7 +9,7 @@ import { testCases } from "../test-helpers.js";
 describe("Test with sign-up disabled", () => {
 
     let _instance = getTestInstance(
-        betterAuth({
+        {
             ...defaultBetterAuthOptions,
             plugins: [
                 bearer(),
@@ -32,7 +32,7 @@ describe("Test with sign-up disabled", () => {
                     }
                 }),
             ]
-        }),
+        },
         {
             clientOptions: {
                 plugins: [credentialsClient()],

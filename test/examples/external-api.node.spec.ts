@@ -32,7 +32,7 @@ describe("External API, make request to auth", () => {
       expect(data).toBeTruthy();
       expect(data?.user).toBeTruthy();
       expect(data?.user.name).toBeTruthy();
-      expect(data?.user.username).toBeUndefined();
+      expect((data?.user as any).username).toBeUndefined();
       expect(data?.user.email).toBe(testCase.username+"@example.com");
       expect(error).toBeFalsy();
 

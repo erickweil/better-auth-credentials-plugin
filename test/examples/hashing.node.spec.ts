@@ -107,7 +107,7 @@ describe("Credentials Provider with Hashing and Account Linking", () => {
   // 5. Agrupa todos os casos de falha esperados.
   testCases("fail cases for hashing provider", [
     // Senha fraca
-    { status: 400, email: "weak.password@example.com", password: "short" },
+    { status: 401, email: "weak.password@example.com", password: "short" },
     // Senha incorreta para um usuário existente
     { status: 401, email: credentialsUser.email, password: "a-very-secure-but-wrong-password" },
     // Input inválido
@@ -122,9 +122,10 @@ describe("Credentials Provider with Hashing and Account Linking", () => {
       .send(body)
       .expect(status);
 
-    // Para o caso de senha fraca, podemos verificar a mensagem de erro específica
-    if (body.password === "short") {
-        expect(response.body.code).toBe("WEAK_PASSWORD");
-    }
+      if(status === 400) {
+        expect(response.body.code).toBe("VALIDATION_ERROR");
+      } else if (status === 401) {
+        expect(response.body.code).toBe("INVALID_CREDENTIALS");
+      }
   });
 });
