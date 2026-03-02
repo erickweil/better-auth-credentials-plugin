@@ -1,9 +1,9 @@
-import { getTestInstance } from "@better-auth-kit/tests";
 import { beforeAll, describe, expect, test } from "vitest";
 import { defaultBetterAuthOptions } from "../plugin.js";
 import { credentials, credentialsClient } from "../../index.js";
 
 import { betterAuth, User } from "better-auth";
+import { getTestInstance } from "better-auth/test";
 import { bearer } from "better-auth/plugins";
 
 describe("Test using the plugin with email verification ON", () => {
@@ -11,7 +11,7 @@ describe("Test using the plugin with email verification ON", () => {
     let lastEmailSent: { user: User; url: string; token: string } | null = null;
 
     const _instance = getTestInstance(
-        betterAuth({
+        {
         ...defaultBetterAuthOptions,
         emailAndPassword: {
             enabled: true,
@@ -47,7 +47,7 @@ describe("Test using the plugin with email verification ON", () => {
                 }
             }),
         ]
-    }), { clientOptions: { plugins: [credentialsClient()] } }
+    }, { clientOptions: { plugins: [credentialsClient()] } }
     );
 
     let client: (Awaited<typeof _instance>)["client"];

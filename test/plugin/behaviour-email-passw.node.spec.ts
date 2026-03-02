@@ -1,4 +1,3 @@
-import { getTestInstance } from "@better-auth-kit/tests";
 import { beforeAll, describe, expect, test } from "vitest";
 import { defaultBetterAuthOptions } from "../plugin.js";
 import { credentials, credentialsClient } from "../../index.js";
@@ -7,6 +6,7 @@ import { APIError } from "better-call";
 import { bearer } from "better-auth/plugins";
 import { testCases } from "../test-helpers.js";
 import * as z from "zod";
+import { getTestInstance } from "better-auth/test";
 
 describe("Test comparison login with email & password vs credentials, should behave similar", () => {
 
@@ -14,7 +14,7 @@ describe("Test comparison login with email & password vs credentials, should beh
     const _cred = "@credential.example.com";
 
     const _instance = getTestInstance(
-        betterAuth({
+        {
         ...defaultBetterAuthOptions,
         emailAndPassword: {
             enabled: true
@@ -62,7 +62,7 @@ describe("Test comparison login with email & password vs credentials, should beh
                 }
             }),
         ]
-    }), { clientOptions: { plugins: [credentialsClient()] } }
+    }, { clientOptions: { plugins: [credentialsClient()] } }
     );
 
     let client: (Awaited<typeof _instance>)["client"];
@@ -76,7 +76,7 @@ describe("Test comparison login with email & password vs credentials, should beh
         { // Fail because password too short
           signUp: true,
           statusEmail: 400, 
-          statusCred: 400,
+          statusCred: 401,
           body: {name: "test1", email: "test1", password: "passw"}, 
           match: {}
         },

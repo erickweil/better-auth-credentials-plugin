@@ -1,4 +1,4 @@
-import { getTestInstance } from "@better-auth-kit/tests";
+import { getTestInstance } from "better-auth/test";
 import { beforeAll, describe, expect, test } from "vitest";
 import { defaultBetterAuthOptions } from "../plugin.js";
 import { credentials, credentialsClient } from "../../index.js";
@@ -10,7 +10,7 @@ import * as z3 from "zod/v3";
 describe("Should still work with zod v3 also", () => {
 
     const _instance = getTestInstance(
-        betterAuth({
+        {
         ...defaultBetterAuthOptions,
         emailAndPassword: {
             enabled: true
@@ -34,7 +34,7 @@ describe("Should still work with zod v3 also", () => {
                 }
             }),
         ]
-    }), { clientOptions: { plugins: [credentialsClient()] } }
+    }, { clientOptions: { plugins: [credentialsClient()] } }
     );
 
     let client: (Awaited<typeof _instance>)["client"];

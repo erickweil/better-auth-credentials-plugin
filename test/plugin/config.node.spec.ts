@@ -6,7 +6,6 @@ import { MongoClient } from "mongodb";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { getApp } from "../../examples/app.js";
 import supertest from "supertest";
-import TestAgent from "supertest/lib/agent.js";
 import { testCases } from "../test-helpers.js";
 
 const client = new MongoClient(process.env.DB_URL_AUTH!);

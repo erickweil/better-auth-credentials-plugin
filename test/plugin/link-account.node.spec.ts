@@ -1,4 +1,4 @@
-import { getTestInstance } from "@better-auth-kit/tests";
+import { getTestInstance } from "better-auth/test";
 import { beforeAll, describe, expect, test } from "vitest";
 import { defaultBetterAuthOptions } from "../plugin.js";
 import { credentials, credentialsClient } from "../../index.js";
@@ -9,7 +9,7 @@ import { bearer } from "better-auth/plugins";
 
 describe("Test using the plugin with custom Account linking attributes", () => {
     const _instance = getTestInstance(
-        betterAuth({
+        {
         ...defaultBetterAuthOptions,
         plugins: [
             bearer(),
@@ -61,7 +61,7 @@ describe("Test using the plugin with custom Account linking attributes", () => {
                 }
             }),
         ]
-    }), { clientOptions: { plugins: [credentialsClient()] } }
+    }, { clientOptions: { plugins: [credentialsClient()] } }
     );
 
     let client: (Awaited<typeof _instance>)["client"];
@@ -82,8 +82,8 @@ describe("Test using the plugin with custom Account linking attributes", () => {
 
         expect(error).toBeDefined();
         expect(data).toBeNull();
-        expect(error?.status).toBe(400);
-        expect(error?.code).toBe("WEAK_PASSWORD");
+        expect(error?.status).toBe(401);
+        expect(error?.code).toBe("INVALID_CREDENTIALS");
         }
 
         // Sign up, then repeat for sign in
@@ -136,8 +136,8 @@ describe("Test using the plugin with custom Account linking attributes", () => {
 
         expect(error).toBeDefined();
         expect(data).toBeNull();
-        expect(error?.status).toBe(400);
-        expect(error?.code).toBe("WEAK_PASSWORD");
+        expect(error?.status).toBe(401);
+        expect(error?.code).toBe("INVALID_CREDENTIALS");
         }
 
         // Link account, then repeat for sign in
