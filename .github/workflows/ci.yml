@@ -32,7 +32,7 @@ jobs:
 
       - name: Install and run tests
         run: |
-          npm ci
+          npm ci || npm i
           npm run test
   # https://docs.github.com/en/actions/how-tos/use-cases-and-examples/publishing-packages/publishing-nodejs-packages
   build:
