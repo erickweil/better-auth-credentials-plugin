@@ -25,7 +25,6 @@ if(isZodV4(z.object({ test: z.string() }))) {
         }),
     });    
 } else {
-    console.log("Using Zod v3");
     schema = z3.object({
         email: z3.string({
             description: "The email of the user",

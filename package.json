@@ -61,6 +61,7 @@
     "@typescript-eslint/parser": "^8.56.1",
     "@vitest/coverage-v8": "^4.0.18",
     "argon2": "^0.44.0",
+    "arktype": "^2.1.29",
     "better-auth": "^1.5.0",
     "dotenv": "^17.3.1",
     "eslint": "^9.39.2",
