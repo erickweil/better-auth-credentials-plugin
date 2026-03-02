@@ -16,8 +16,8 @@ jobs:
       matrix:
       # https://github.com/nodejs/Release#release-schedule
       # https://github.com/nvm-sh/nvm
-      #          20.x        22.x     24.x
-        node: [ "lts/iron", "lts/*", "latest" ]
+      #          22.x        24.x     25.x
+        node: [ "lts/jod", "lts/*", "latest" ]
     name: Test Node.js ${{ matrix.node }}
     steps:
       - uses: actions/checkout@v4

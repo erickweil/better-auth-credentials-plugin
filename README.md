@@ -10,7 +10,7 @@ The plugin itself can be used to authenticate to anything, as are you that handl
 - Full control over the authentication process
 - Auto sign-up (optional) and management of Account linking and session creation
 - Similar in behaviour to the default email & password flow, but YOU handle the verification of the credentials and allow automatically sign-up
-- Route customization, you can choose the route path and the body parameters (using any Standard Schema compatible validator, e.g. Zod/Valibot/ArkType, that doubles as validation and OpenAPI documentation)
+- Route customization, you can choose the route path and the body parameters (using any Standard Schema compatible validator, e.g. Zod/Valibot/ArkType, but only zod works also as OpenAPI documentation)
 - Supports custom callbacks for sign-in and sign-up events
 
 Examples (All are built using express + MongoDB):
