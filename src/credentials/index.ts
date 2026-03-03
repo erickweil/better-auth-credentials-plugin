@@ -200,7 +200,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 					const parsed = ctx.body as GetBodyParsed<Z>;
                     if(!parsed || typeof parsed !== "object") {
                         ctx.context.logger.error("Invalid request body", { credentials });
-                        throw APIError.from("UNPROCESSABLE_ENTITY", CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR);
+                        throw APIError.from("INTERNAL_SERVER_ERROR", CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR);
                     }
 
 					// ================== 2. Calling Callback Function ===================
@@ -210,11 +210,12 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 
 						if (!callbackResult) {
 							ctx.context.logger.error("Authentication failed, callback didn't returned user data", { credentials });
+							// TODO: Opaque UNAUTHORIZED error thrown, Check if error should be passed through to the client
 							throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 						}
 					} catch (error) {
 						ctx.context.logger.error("Authentication failed", { error, credentials });
-					
+						// TODO: Opaque UNAUTHORIZED error thrown, Check if error should be passed through to the client
 						throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 					}
 					let {onSignIn, onSignUp, onLinkAccount, email, ..._userData} = callbackResult;
@@ -225,7 +226,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 						email = "email" in parsed && typeof parsed.email === "string" ? parsed.email : undefined;
 						if(!email) {
 							ctx.context.logger.error("Email is required for credentials authentication", { credentials });
-							throw APIError.from("UNPROCESSABLE_ENTITY", CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR);
+							throw APIError.from("UNPROCESSABLE_ENTITY", CREDENTIALS_ERROR_CODES.EMAIL_REQUIRED);
 						}
 					}
 					email = email.toLowerCase();
@@ -245,6 +246,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 					if(!options.autoSignUp && !user) {
 						// TODO: timing attack mitigation?
 						ctx.context.logger.error("User not found", { credentials });
+						// TODO: Opaque UNAUTHORIZED error thrown, Check if error should be passed through to the client
 						throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS );
 					}
 
@@ -295,7 +297,8 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 							throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 						}
 						if (!user) {
-							throw APIError.from("UNPROCESSABLE_ENTITY", CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR);
+							ctx.context.logger.error("Failed to create user without errors, adapter returned falsy", { user });
+							throw APIError.from("INTERNAL_SERVER_ERROR", CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR);
 						}
 
 						// ================== 5. create new Account ====================
@@ -355,11 +358,13 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 
 						if((!options.autoSignUp || !options.linkAccountIfExisting) && !account) {
 							ctx.context.logger.error("User exists but no account found for this provider", { credentials });
+							// TODO: Opaque UNAUTHORIZED error thrown, Check if error should be passed through to the client
 							throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 						}
 
 						if(account && account.providerId === "credential" && account.password) {
 							ctx.context.logger.error("Shouldn't login with credentials, this user has a account with password", { credentials });
+							// TODO: Opaque UNAUTHORIZED error thrown, Check if error should be passed through to the client
 							throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 						}
 						
@@ -418,7 +423,7 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 					);
 					if (!session) {
 						ctx.context.logger.error("Failed to create session");
-						throw APIError.from("BAD_REQUEST", CREDENTIALS_ERROR_CODES.UNEXPECTED_ERROR);
+						throw APIError.from("INTERNAL_SERVER_ERROR", CREDENTIALS_ERROR_CODES.FAILED_TO_CREATE_SESSION);
 					}
 					await setSessionCookie(
 						ctx,
