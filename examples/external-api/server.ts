@@ -11,6 +11,7 @@ const users = new Array(100).fill({}).map((_, index) => ({
     password: `password${index + 1}`,
 }));
 
+const tokenExpiryDelay = 10 * 60 * 1000; // 10 min
 const app = getApp(auth, (_app) => {
     _app.post("/example/login", async (req, res, next) => {
         const { username, password } = req.body;
@@ -24,8 +25,71 @@ const app = getApp(auth, (_app) => {
         }
 
         res.status(200).json({
-            ...foundUser,
-            password: undefined,
+            token: `${foundUser.id}.${Date.now()+tokenExpiryDelay}`, // Just a dummy token for demonstration
+            user: {
+                ...foundUser,
+                password: undefined,
+            }
+        });
+    });
+
+    _app.get("/example/me", async (req, res, next) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader) {
+            res.status(401).json({ message: "Token de autenticação ausente" });
+            return;
+        }
+
+        const [,token] = authHeader.split(" ");
+        const [userId, expiryAt] = token.split(".");
+
+        if (Date.now() > parseInt(expiryAt)) {
+            res.status(401).json({ message: "Token de autenticação expirado" });
+            return;
+        }
+
+        const foundUser = users.find(user => ""+user.id === userId);
+        if (!foundUser) {
+            res.status(401).json({ message: "Token de autenticação inválido" });
+            return;
+        }
+
+        res.status(200).json({
+            user: {
+                ...foundUser,
+                password: undefined,
+            }
+        });
+    });
+
+    _app.post("/example/refresh", async (req, res, next) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader) {
+            res.status(401).json({ message: "Token de autenticação ausente" });
+            return;
+        }
+
+        const [,token] = authHeader.split(" ");
+        const [userId, expiryAt] = token.split(".");
+
+        if (Date.now() > parseInt(expiryAt)) {
+            res.status(401).json({ message: "Token de autenticação expirado" });
+            return;
+        }
+        
+        const foundUser = users.find(user => ""+user.id === userId);
+        if (!foundUser) {
+            res.status(401).json({ message: "Token de autenticação inválido" });
+            return;
+        }
+        
+        // Return a new token with extended expiry
+        res.status(200).json({
+            token: `${foundUser.id}.${Date.now()+tokenExpiryDelay}`,
+            user: {
+                ...foundUser,
+                password: undefined,
+            }
         });
     });
 });
