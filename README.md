@@ -18,7 +18,7 @@ Examples (All are built using express + MongoDB):
 - examples/ldap-auth - Uses this plugin to perform LDAP authentication, showing how easy is to use it
 
 Considerations:
-- **Stateless (without a database) not supported yet.**
+- Stateless (without a database) works only if autoSignUp is true (every login is considered a new user because there is no database), also if you need to refresh tokens or something like that at an external API you'll need to handle that yourself (you can use the customSession plugin or an Hook on /get-session and do some logic to handle refresh calling an external api for example).
 - You need to return a `email` field after the authentication, this is used to create/update the user in the database, and also to link the account with the session (email field should be unique).
 - It's not intended to use this to re-implement password login, but to be used when you need to integrate with an external system that uses credentials for authentication, like LDAP, or any other system that you can verify the credentials and get user data. If you try to mimic password login by hashing and storing the password, aditional database round-trips will be needed as this plugin will search the user again after you alread did (just use the email & password flow or username plugin don't do this).
 - If you want to use both this plugin and the email & password flow (or username), you must decide which behaviour to have:
@@ -145,51 +145,60 @@ credentials({
 ```
 
 ### Login on external API
-Example using the plugin to authenticate users against an external API, when you want to use the plugin to authenticate users against an external system that uses credentials for authentication, like a custom API or service. For this demonstration, the API has predefined users and returns user data after successful authentication.
+Example using the plugin to authenticate users against an external API in stateless mode (without a database), when you want to use the plugin to authenticate users against an external system that uses credentials for authentication, like a custom API or service. For this demonstration, the API has predefined users and returns user data and a token after successful authentication.
 
 Server side:
 [examples/external-api/auth.ts](examples/external-api/auth.ts)
 ```javascript
 
-export const myCustomSchema = z.object({
-    username: z.string().min(1),
-    password: z.string().min(1),
-});
-
 export const auth = betterAuth({
+    database: undefined, // No database adapter for stateless mode
+    session: {
+        cookieCache: {
+            enabled: true,
+            strategy: "jwt", // can be "jwe", "jwt" or "compact"
+        },
+    },
+    user: {
+        additionalFields: {
+            // In stateless mode, every login is a new user with its own data, so we can store the token here while also allowing multiple sessions per external api user.
+            token: {
+                type: "string",
+                returned: true,
+                required: false
+            }
+        }
+    },
     plugins: [
         credentials({
             autoSignUp: true,
-            path: "/sign-in/external",
-            inputSchema: myCustomSchema,
             // Credentials login callback, this is called when the user submits the form
             async callback(ctx, parsed) {
-                // Simulate an external API call to authenticate the user
-                const { username, password } = parsed;
+                // Make an external API call to authenticate the user
+                const { email, password } = parsed;
                 const response = await fetch(`http://localhost:${process.env.PORT || 3000}/example/login`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                     },
-                    body: JSON.stringify({ username, password }),
+                    body: JSON.stringify({ email, password }),
                 });
 
                 if (!response.ok) {
                     throw new Error("Error authenticating:"+ ` ${response.status} ${response.statusText}`);
                 }
 
-                const apiUser = await response.json();
+                const {token, user: apiUser} = await response.json();
 
                 return {
-                    // Must return email, because inputSchema doesn't have it
-                    email: apiUser.email,
+                    // Store the token in the user to use it later for authenticated requests to the external API
+                    token: token,
 
                     // Other user data to update
                     name: apiUser.name,
-                    username: apiUser.username,
                 };
             },
-        }),
+        })
     ],
 });
 ```
