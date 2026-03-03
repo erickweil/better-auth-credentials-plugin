@@ -210,12 +210,13 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 
 						if (!callbackResult) {
 							ctx.context.logger.error("Authentication failed, callback didn't returned user data", { credentials });
-							// TODO: Opaque UNAUTHORIZED error thrown, Check if error should be passed through to the client
-							throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
+							throw new Error("Authentication failed: callback didn't returned user data");
 						}
-					} catch (error) {
-						ctx.context.logger.error("Authentication failed", { error, credentials });
-						// TODO: Opaque UNAUTHORIZED error thrown, Check if error should be passed through to the client
+					} catch (e) {
+						ctx.context.logger.error("Authentication failed", { error: e, credentials });
+						if (e instanceof APIError) {
+							throw e;
+						}
 						throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 					}
 					let {onSignIn, onSignUp, onLinkAccount, email, ..._userData} = callbackResult;
@@ -303,8 +304,18 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 
 						// ================== 5. create new Account ====================
 						let accountData = {};
-						if(onLinkAccount && typeof onLinkAccount === "function") {
-							accountData = await onLinkAccount(user);
+						try {
+							if(onLinkAccount && typeof onLinkAccount === "function") {
+								accountData = await onLinkAccount(user);
+							}
+						} catch (e) {
+							// Undoing the user creation if account linking fails, to avoid having users without accounts
+							ctx.context.logger.error("Failed to get account data from onLinkAccount callback during sign-up, cleaning up: deleting newly created user...", e);
+							await ctx.context.internalAdapter.deleteUser(user.id);
+							if (e instanceof APIError) {
+								throw e;
+							}
+							throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 						}
 						account = await ctx.context.internalAdapter.linkAccount(
 							{
@@ -389,8 +400,16 @@ export const credentials = <U extends User = User, P extends string = "/sign-in/
 						if(!account) {
 							// Create an account for the user if it doesn't exist
 							let accountData = {};
-							if(onLinkAccount && typeof onLinkAccount === "function") {
-								accountData = await onLinkAccount(user);
+							try {
+								if(onLinkAccount && typeof onLinkAccount === "function") {
+									accountData = await onLinkAccount(user);
+								}
+							} catch (e) {
+								ctx.context.logger.error("Failed to get account data from onLinkAccount callback during sign-in", e);
+								if (e instanceof APIError) {
+									throw e;
+								}
+								throw APIError.from("UNAUTHORIZED", CREDENTIALS_ERROR_CODES.INVALID_CREDENTIALS);
 							}
 							account = await ctx.context.internalAdapter.linkAccount(
 								{
